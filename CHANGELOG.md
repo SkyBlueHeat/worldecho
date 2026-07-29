@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0-SNAPSHOT
+## 0.2.0-SNAPSHOT
 
 ### Added
 
@@ -40,6 +40,25 @@
 - Bukkit-to-domain mapping is isolated in `integration/bukkit/BukkitItems`
 - `/worldecho reload` only reloads configuration and messages; persistence and providers
   keep running
+
+### Added (0.2.0-SNAPSHOT)
+
+- Content bindings: server owners can map provider-specific content IDs to WorldEcho
+  semantic roles, capabilities, faction, rank, superior, and tags via `bindings.yml`
+- `BindingLoader` validates untrusted YAML, producing diagnostics for invalid entries while
+  loading valid ones; a fatal error (missing/unsupported schema version) falls back to an
+  empty registry
+- `BindingEnricher` merges configured roles and capabilities with provider-supplied ones
+  without mutating the original `IdentifiedContent`
+- `ContentKey.parse(String)` splits `provider:contentId` strings with validation
+- `/worldecho status` now shows entity/item binding counts, warnings, errors, and schema
+  version
+- `/worldecho inspect item|entity` now displays binding metadata (faction, rank, superior,
+  tags) when a binding exists
+- `/worldecho reload` now reloads `bindings.yml` in addition to `config.yml` and messages
+- `bindings.yml` shipped as a default resource with example entity and item bindings
+- Tests: `BindingLoaderTest` (24 cases), `BindingRegistryTest` (9 cases),
+  `BindingEnricherTest` (9 cases), and extended `BundledResourcesTest`
 
 ### Known limitations
 

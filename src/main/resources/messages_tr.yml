@@ -24,6 +24,6 @@ inspect-header: "<aqua>İçerik kimliği</aqua>"
 inspect-no-item: "<yellow>İncelemek için ana elinizde bir eşya tutun.</yellow>"
 inspect-no-entity: "<yellow>İncelemek için 12 blok içindeki bir varlığa bakın.</yellow>"
 
-reload-success: "<green>Yapılandırma ve mesajlar yeniden yüklendi.</green>"
+reload-success: "<green>Yapılandırma, mesajlar ve bağlamalar yeniden yüklendi.</green>"
 reload-warning: "<yellow>{warning}</yellow>"
 reload-failed: "<red>Yeniden yükleme başarısız. Önceki yapılandırma etkin kalmaya devam ediyor.</red>"

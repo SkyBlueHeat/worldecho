@@ -1,7 +1,9 @@
 package dev.worldecho.paper.command;
 
+import dev.worldecho.application.BindingEnricher;
 import dev.worldecho.application.ItemValueScorer;
 import dev.worldecho.config.WorldEchoSettings;
+import dev.worldecho.domain.binding.EnrichedContent;
 import dev.worldecho.domain.content.IdentifiedContent;
 import dev.worldecho.domain.item.ItemDescriptor;
 import dev.worldecho.domain.item.ItemScore;
@@ -55,6 +57,7 @@ public final class WorldEchoCommand implements CommandExecutor, TabCompleter {
     private final Supplier<WorldEchoSettings> settingsSupplier;
     private final Supplier<PaperMessageService> messageSupplier;
     private final Supplier<ItemValueScorer> scorerSupplier;
+    private final Supplier<BindingEnricher> enricherSupplier;
     private final IntegrationRegistry integrations;
     private final DatabaseManager databaseManager;
     private final StoryEventRepository repository;
@@ -67,6 +70,7 @@ public final class WorldEchoCommand implements CommandExecutor, TabCompleter {
             Supplier<WorldEchoSettings> settingsSupplier,
             Supplier<PaperMessageService> messageSupplier,
             Supplier<ItemValueScorer> scorerSupplier,
+            Supplier<BindingEnricher> enricherSupplier,
             IntegrationRegistry integrations,
             DatabaseManager databaseManager,
             StoryEventRepository repository,
@@ -78,6 +82,7 @@ public final class WorldEchoCommand implements CommandExecutor, TabCompleter {
         this.settingsSupplier = Objects.requireNonNull(settingsSupplier, "settingsSupplier");
         this.messageSupplier = Objects.requireNonNull(messageSupplier, "messageSupplier");
         this.scorerSupplier = Objects.requireNonNull(scorerSupplier, "scorerSupplier");
+        this.enricherSupplier = Objects.requireNonNull(enricherSupplier, "enricherSupplier");
         this.integrations = Objects.requireNonNull(integrations, "integrations");
         this.databaseManager = Objects.requireNonNull(databaseManager, "databaseManager");
         this.repository = Objects.requireNonNull(repository, "repository");
@@ -126,6 +131,13 @@ public final class WorldEchoCommand implements CommandExecutor, TabCompleter {
         line(sender, "queue.failed", Long.toString(queue.failed()));
         line(sender, "queue.dropped", Long.toString(queue.dropped()));
         line(sender, "providers", String.join(", ", integrations.describeProviders()));
+
+        BindingEnricher enricher = enricherSupplier.get();
+        line(sender, "bindings.entities", Integer.toString(enricher.registry().entityBindingCount()));
+        line(sender, "bindings.items", Integer.toString(enricher.registry().itemBindingCount()));
+        line(sender, "bindings.warnings", Long.toString(enricher.registry().warningCount()));
+        line(sender, "bindings.errors", Long.toString(enricher.registry().errorCount()));
+        line(sender, "bindings.schema-version", Integer.toString(enricher.registry().schemaVersion()));
 
         query(
                 sender,
@@ -216,11 +228,14 @@ public final class WorldEchoCommand implements CommandExecutor, TabCompleter {
             return;
         }
 
+        BindingEnricher enricher = enricherSupplier.get();
+        EnrichedContent enriched = enricher.enrichItem(identified.get());
+
         ItemDescriptor descriptor =
                 BukkitItems.describe(item, identified.get().key().providerId());
         ItemScore score = scorerSupplier.get().score(descriptor);
 
-        showContent(player, identified.get());
+        showContent(player, enriched);
         line(player, "material", descriptor.materialKey());
         line(player, "score", Integer.toString(score.value()));
         line(player, "score.factors", score.explain());
@@ -248,16 +263,25 @@ public final class WorldEchoCommand implements CommandExecutor, TabCompleter {
             return;
         }
 
-        showContent(player, identified.get());
+        BindingEnricher enricher = enricherSupplier.get();
+        EnrichedContent enriched = enricher.enrichEntity(identified.get());
+
+        showContent(player, enriched);
         line(player, "runtime-id", entity.getUniqueId().toString());
     }
 
-    private void showContent(CommandSender sender, IdentifiedContent content) {
+    private void showContent(CommandSender sender, EnrichedContent content) {
         messages().send(sender, "inspect-header");
         line(sender, "key", content.key().toString());
         line(sender, "display", content.displayName());
         line(sender, "roles", describe(content.roles()));
         line(sender, "capabilities", describe(content.capabilities()));
+        content.optionalBinding().ifPresent(binding -> {
+            line(sender, "faction", binding.optionalFaction().orElse("-"));
+            line(sender, "rank", binding.optionalRank().orElse("-"));
+            line(sender, "superior", binding.optionalSuperior().map(Object::toString).orElse("-"));
+            line(sender, "tags", binding.tags().isEmpty() ? "-" : String.join(", ", binding.tags()));
+        });
     }
 
     private void reload(CommandSender sender) {

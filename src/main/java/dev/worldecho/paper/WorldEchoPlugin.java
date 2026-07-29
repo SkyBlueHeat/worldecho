@@ -1,10 +1,15 @@
 package dev.worldecho.paper;
 
+import dev.worldecho.application.BindingEnricher;
 import dev.worldecho.application.ItemValueScorer;
 import dev.worldecho.application.MemoryRecorder;
+import dev.worldecho.config.BindingLoadResult;
+import dev.worldecho.config.BindingLoader;
 import dev.worldecho.config.SettingsLoadResult;
 import dev.worldecho.config.SettingsLoader;
 import dev.worldecho.config.WorldEchoSettings;
+import dev.worldecho.domain.binding.BindingDiagnostic;
+import dev.worldecho.domain.binding.BindingRegistry;
 import dev.worldecho.integration.IntegrationRegistry;
 import dev.worldecho.integration.vanilla.VanillaEntityProvider;
 import dev.worldecho.integration.vanilla.VanillaItemProvider;
@@ -17,9 +22,17 @@ import dev.worldecho.persistence.SqliteStoryEventRepository;
 import dev.worldecho.persistence.StoryEventRepository;
 import dev.worldecho.persistence.StoryWriteQueue;
 import org.bukkit.command.PluginCommand;
+import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import java.io.IOException;
+import java.io.Reader;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
@@ -35,9 +48,12 @@ public final class WorldEchoPlugin extends JavaPlugin {
 
     private static final Duration STORAGE_INIT_TIMEOUT = Duration.ofSeconds(30);
 
+    private static final String BINDINGS_FILE = "bindings.yml";
+
     private volatile WorldEchoSettings settings;
     private volatile PaperMessageService messages;
     private volatile ItemValueScorer itemValueScorer;
+    private volatile BindingEnricher bindingEnricher;
 
     private IntegrationRegistry integrations;
     private DatabaseManager databaseManager;
@@ -48,7 +64,9 @@ public final class WorldEchoPlugin extends JavaPlugin {
     @Override
     public void onEnable() {
         saveDefaultConfig();
+        saveDefaultBindings();
         applyConfiguration().forEach(warning -> getLogger().warning("Configuration: " + warning));
+        loadBindings();
 
         queryExecutor = Executors.newSingleThreadExecutor(runnable -> {
             Thread thread = new Thread(runnable, "worldecho-sqlite-reader");
@@ -129,14 +147,16 @@ public final class WorldEchoPlugin extends JavaPlugin {
     }
 
     /**
-     * Re-reads config.yml and the locale files. Persistence and providers keep running so a
-     * reload can never lose queued memories.
+     * Re-reads config.yml, bindings.yml, and the locale files. Persistence and providers
+     * keep running so a reload can never lose queued memories.
      *
      * @return validation warnings that should be shown to the administrator
      */
     public List<String> reloadSettings() {
         reloadConfig();
-        return applyConfiguration();
+        List<String> warnings = new ArrayList<>(applyConfiguration());
+        warnings.addAll(loadBindings());
+        return warnings;
     }
 
     /**
@@ -175,6 +195,77 @@ public final class WorldEchoPlugin extends JavaPlugin {
         return result.warnings();
     }
 
+    private void saveDefaultBindings() {
+        Path destination = getDataFolder().toPath().resolve(BINDINGS_FILE);
+        if (!Files.exists(destination)) {
+            try {
+                if (!Files.exists(getDataFolder().toPath())) {
+                    Files.createDirectories(getDataFolder().toPath());
+                }
+                try (var stream = getResource(BINDINGS_FILE)) {
+                    if (stream != null) {
+                        Files.copy(stream, destination);
+                    }
+                }
+            } catch (IOException exception) {
+                getLogger().log(Level.WARNING, "Could not create default " + BINDINGS_FILE, exception);
+            }
+        }
+    }
+
+    /**
+     * Loads (or reloads) bindings.yml. On startup, a fatal error falls back to an empty
+     * registry. On reload, a fatal error keeps the previous registry.
+     *
+     * @return diagnostic messages for the administrator
+     */
+    private List<String> loadBindings() {
+        Path bindingsPath = getDataFolder().toPath().resolve(BINDINGS_FILE);
+        BindingLoadResult result;
+
+        if (!Files.exists(bindingsPath)) {
+            result = BindingLoader.load(new BukkitConfigurationSource(new YamlConfiguration()));
+        } else {
+            YamlConfiguration yaml = new YamlConfiguration();
+            try (Reader reader = Files.newBufferedReader(bindingsPath, StandardCharsets.UTF_8)) {
+                yaml.load(reader);
+                result = BindingLoader.load(new BukkitConfigurationSource(yaml));
+            } catch (IOException | org.bukkit.configuration.InvalidConfigurationException exception) {
+                getLogger().log(Level.WARNING, "Could not read " + BINDINGS_FILE, exception);
+                result = new BindingLoadResult(BindingRegistry.empty(), List.of(
+                        new BindingDiagnostic(BindingDiagnostic.Severity.ERROR, BINDINGS_FILE,
+                                "File could not be parsed: " + exception.getMessage())
+                ), true);
+            }
+        }
+
+        List<String> messages = new ArrayList<>();
+        if (result.fatalError() && bindingEnricher != null) {
+            getLogger().warning("Bindings reload failed; previous registry is kept");
+            messages.add("Bindings reload failed; previous registry is kept");
+            return messages;
+        }
+
+        BindingRegistry registry = result.registry();
+        bindingEnricher = new BindingEnricher(registry);
+
+        for (BindingDiagnostic diagnostic : result.diagnostics()) {
+            String entry = diagnostic.toString();
+            messages.add(entry);
+            if (diagnostic.isError()) {
+                getLogger().warning("Bindings: " + entry);
+            } else {
+                getLogger().info("Bindings: " + entry);
+            }
+        }
+
+        getLogger().info("Bindings loaded: " + registry.entityBindingCount() + " entity, "
+                + registry.itemBindingCount() + " item, "
+                + registry.warningCount() + " warning(s), " + registry.errorCount() + " error(s)");
+
+        return messages;
+    }
+
     private void registerCommand() {
         PluginCommand command = getCommand("worldecho");
         if (command == null) {
@@ -187,6 +278,7 @@ public final class WorldEchoPlugin extends JavaPlugin {
                 () -> settings,
                 () -> messages,
                 () -> itemValueScorer,
+                () -> bindingEnricher,
                 integrations,
                 databaseManager,
                 repository,

@@ -24,8 +24,13 @@ Sprint 1 remains a single project with package boundaries that can later be extr
 dev.worldecho.domain
   Pure Java domain types and rules. No Bukkit imports.
 
+dev.worldecho.domain.binding
+  Content binding domain types: BindingType, ContentBinding, BindingDiagnostic,
+  BindingRegistry, EnrichedContent. No Bukkit imports.
+
 dev.worldecho.application
-  Use cases: record memory, generate candidate, create story, schedule consequence.
+  Use cases: record memory, generate candidate, create story, schedule consequence,
+  enrich content with bindings.
 
 dev.worldecho.persistence
   Repository interfaces, SQLite implementations, schema migrations, write queue.
@@ -110,7 +115,7 @@ regions
 region_metrics
 world_history
 player_story_state
-content_bindings
+content_bindings (in-memory registry loaded from bindings.yml)
 ```
 
 ## Story scenario format

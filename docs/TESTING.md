@@ -18,8 +18,11 @@ Requires JDK 25. The wrapper pins Gradle 9.6.1.
 | `SchemaMigratorTest` | Empty-database migration, idempotent re-run, required indexes |
 | `SqliteStoryEventRepositoryTest` | Round-trip of every column, recency ordering, history is never overwritten |
 | `StoryWriteQueueTest` | Shutdown drains the queue, saturation drops instead of blocking, failures are counted |
-| `BundledResourcesTest` | Shipped `config.yml` equals the built-in defaults; every English message has a Turkish counterpart |
+| `BundledResourcesTest` | Shipped `config.yml` equals the built-in defaults; every English message has a Turkish counterpart; bundled `bindings.yml` is parseable with supported schema and valid example tokens |
 | `ScenarioCompatibilityServiceTest` | Capability matching and rejection reasons |
+| `BindingLoaderTest` | Schema validation, malformed keys, unknown roles/capabilities, wrong types, duplicate tags, missing version, partial loading |
+| `BindingRegistryTest` | Entity/item namespace separation, lookup, counts, immutability, diagnostics counting |
+| `BindingEnricherTest` | Role/capability merging, base content not mutated, entity/item isolation, metadata preservation |
 
 `shadowJar` is finalized by `shadowJarSmokeTest`, which opens a real SQLite database using
 **only** the shaded JAR. Unit tests run against the un-shadowed classpath, so they cannot
