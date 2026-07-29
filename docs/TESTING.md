@@ -21,20 +21,47 @@ Requires JDK 25. The wrapper pins Gradle 9.6.1.
 | `BundledResourcesTest` | Shipped `config.yml` equals the built-in defaults; every English message has a Turkish counterpart |
 | `ScenarioCompatibilityServiceTest` | Capability matching and rejection reasons |
 
+`shadowJar` is finalized by `shadowJarSmokeTest`, which opens a real SQLite database using
+**only** the shaded JAR. Unit tests run against the un-shadowed classpath, so they cannot
+see packaging faults; this smoke test exists because relocating `org.sqlite` once produced
+a JAR that compiled, passed every test, and then failed with `UnsatisfiedLinkError` on a
+real server, since the bundled native library still exports `Java_org_sqlite_core_NativeDB_*`.
+
 Tests are pure JVM tests. Classes that touch Bukkit (listener, command, providers, plugin
 lifecycle) are deliberately thin adapters over tested logic, because a Paper server cannot
 be started inside this test suite.
 
-## What automated tests cannot cover
+## Verified on a real server
 
-The following was **not** verified on a real Paper 26.2 server; no Minecraft server or
-client was available in the build environment:
+The slice was executed on **Paper 26.2 build 87** with **Temurin 25.0.4+7** across four
+headless boots driven from the server console, with WorldEcho as the only plugin (except
+the death-capture boot, see below):
 
-- plugin enable/disable inside a running server
-- actual `PlayerDeathEvent` capture, including killer and projectile-shooter resolution
-- `Tag.ITEMS_*` and `EntityType` behavior at runtime
-- `/worldecho status`, `recent`, `inspect`, and `reload` output in-game
-- MiniMessage rendering in the client chat window
+- enable and clean disable, no exceptions, all three documented startup lines
+- `status`, `recent`, `recent abc` (invalid count fallback), `inspect item` from console
+  (players-only refusal), an unknown subcommand, and `reload`
+- a **real `PlayerDeathEvent`**: a headless bot carrying a diamond sword was killed by a
+  naturally spawned zombie, producing exactly one row with
+  `actor=vanilla:minecraft:zombie item=vanilla:minecraft:diamond_sword`
+- a skeleton kill recorded as `actor=vanilla:minecraft:skeleton`, never `minecraft:arrow`,
+  confirming projectile shooter resolution
+- a fall death recorded nothing, confirming the listener ignores non-entity causes
+- 10 deaths: `queue.written: 10, failed: 0, dropped: 0`, shutdown drained all of them,
+  the stored row contained every column and `score=45;scoreFactors=material\=45`
+- restart: `0 migration(s) applied` and all rows survived with identical IDs
+- `locale: tr` plus a deliberately invalid `minimum-item-score: "abc"`: Turkish output,
+  the value fell back to `25` with a warning, and the plugin stayed enabled
+
+The death-capture boot additionally had ViaVersion/ViaBackwards installed, because no bot
+library speaks the 26.2 protocol yet; the "starts with no integrations" requirement was
+verified on the other three boots.
+
+## Still unverified
+
+- `/worldecho inspect item|entity` output in a real client chat window (console can only
+  confirm the players-only refusal)
+- `record-without-valuable-item: false` combined with a high `minimum-item-score`
+- a Spark profile proving no SQLite frames appear on the server thread
 - behavior with MythicMobs, Oraxen, ItemsAdder, Citizens, or ModelEngine installed
 
 ## Manual verification on a Paper server

@@ -39,6 +39,17 @@ java {
     withSourcesJar()
 }
 
+// Unit tests run against the un-shadowed classpath, so packaging faults (a bad relocation,
+// a missing service file) can only be caught by loading the shaded JAR itself.
+val shadowJarSmokeTest = tasks.register<JavaExec>("shadowJarSmokeTest") {
+    group = "verification"
+    description = "Opens a real SQLite database using only the shaded JAR."
+    classpath = files(tasks.shadowJar.flatMap { it.archiveFile })
+    mainClass.set(layout.projectDirectory.file("gradle/smoke/SqliteSmoke.java").asFile.path)
+    args(layout.buildDirectory.dir("smoke").get().asFile.path)
+    jvmArgs("--enable-native-access=ALL-UNNAMED")
+}
+
 tasks {
     withType<JavaCompile>().configureEach {
         options.encoding = "UTF-8"
@@ -67,8 +78,11 @@ tasks {
         archiveClassifier.set("")
         duplicatesStrategy = DuplicatesStrategy.INCLUDE
         mergeServiceFiles()
-        relocate("org.sqlite", "dev.worldecho.lib.sqlite")
+        // sqlite-jdbc must not be relocated: its bundled native library exports
+        // Java_org_sqlite_core_NativeDB_* symbols, which no longer bind once the Java
+        // classes are renamed.
         exclude("META-INF/*.SF", "META-INF/*.DSA", "META-INF/*.RSA")
+        finalizedBy(shadowJarSmokeTest)
     }
 
     build {

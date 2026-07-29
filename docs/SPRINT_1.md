@@ -62,8 +62,9 @@ This sprint does **not** transfer the item to a captain. It creates the reliable
 | CI workflow | done | `.github/workflows/build.yml` |
 | README setup docs | done | `README.md`, `docs/CONFIGURATION.md`, `docs/TESTING.md` |
 
-Acceptance behavior that can only be confirmed on a live Paper server is listed in
-`docs/TESTING.md`; it has not been executed in this environment.
+Every acceptance test above except the in-game `/worldecho inspect` output and the
+`record-without-valuable-item: false` case was executed on a real Paper 26.2 server; the
+results and the remaining gaps are recorded in `docs/TESTING.md`.
 
 ## Deferred
 

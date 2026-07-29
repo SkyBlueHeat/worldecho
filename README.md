@@ -53,7 +53,9 @@ The distributable JAR is produced under:
 build/libs/worldecho-0.1.0-SNAPSHOT.jar
 ```
 
-SQLite is shaded and relocated into the JAR; the Paper API is not packaged.
+SQLite is shaded into the JAR (deliberately **not** relocated, so its native library keeps
+binding) and the Paper API is not packaged. `shadowJar` is finalized by a smoke test that
+opens a SQLite database using only the shaded JAR.
 
 ## Runtime
 
@@ -82,7 +84,8 @@ All subcommands require the `worldecho.admin` permission (default: op).
 - `docs/SPRINT_1.md` — first implementation slice
 - `docs/ROADMAP.md` — staged delivery plan
 - `docs/CONFIGURATION.md` — every configuration key and the scoring formula
-- `docs/TESTING.md` — automated coverage and the manual Paper checklist
+- `docs/TESTING.md` — automated coverage, what was verified on a real Paper 26.2 server,
+  and the manual checklist
 - `DEVIN_PROMPT.md` — ready-to-paste Devin Agent prompt
 
 ## Important

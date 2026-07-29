@@ -26,6 +26,13 @@
   and failure isolation, migrations, repository round-trips, the write queue, and the
   shipped resources
 
+### Fixed
+
+- The shaded JAR relocated `org.sqlite`, which broke JNI binding for the bundled native
+  library and disabled the plugin during `onEnable` with `UnsatisfiedLinkError`. The
+  relocation is gone and `shadowJar` is now finalized by a smoke test that opens a real
+  SQLite database using only the shaded JAR.
+
 ### Changed
 
 - `ItemValueScorer` operates on the immutable `ItemDescriptor` instead of a Bukkit
@@ -36,8 +43,11 @@
 
 ### Known limitations
 
-- Not validated inside a running Paper server: no Minecraft server or client was available
-  in the build environment. See `docs/TESTING.md` for the manual checklist.
+- Validated on Paper 26.2 build 87 with Temurin 25 (enable/disable, commands, a real
+  zombie kill captured from a headless bot, persistence across restart, Turkish locale and
+  invalid-config fallback). Still unverified: in-game `/worldecho inspect` output,
+  `record-without-valuable-item: false` with a high minimum score, and a Spark profile.
+  See `docs/TESTING.md`.
 - External content bridges (MythicMobs, Oraxen, ItemsAdder, Citizens, ModelEngine) are not
   implemented; only the vanilla fallback providers exist.
 - The player-death listener only records a memory; it does not transfer ownership.
