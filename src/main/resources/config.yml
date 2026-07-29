@@ -1,0 +1,17 @@
+locale: en
+
+capture:
+  player-deaths:
+    enabled: true
+    record-without-valuable-item: true
+    minimum-item-score: 25
+    redact-custom-item-names: false
+    ignored-worlds: []
+
+persistence:
+  sqlite-file: worldecho.db
+  shutdown-timeout-seconds: 10
+
+commands:
+  recent-default-count: 10
+  recent-maximum-count: 50

@@ -1,0 +1,24 @@
+prefix: "<gold>[WorldEcho]</gold> "
+
+plugin-enabled: "<green>WorldEcho enabled.</green>"
+plugin-disabled: "<yellow>WorldEcho disabled.</yellow>"
+no-permission: "<red>You do not have permission.</red>"
+unknown-subcommand: "<red>Unknown subcommand.</red>"
+usage: "<yellow>Usage: /worldecho <status|recent|inspect|reload></yellow>"
+
+status-header: "<gold>WorldEcho status</gold>"
+status-line: "<gray>{key}:</gray> <white>{value}</white>"
+
+recent-header: "<gold>Recent memories</gold>"
+recent-empty: "<gray>No memories have been recorded.</gray>"
+recent-line: "<gray>{time}</gray> <white>{type}</white> <dark_gray>({id})</dark_gray>"
+recent-loading: "<gray>Loading recent memories…</gray>"
+recent-failed: "<red>Could not load recent memories. Check the server log.</red>"
+
+inspect-no-item: "<yellow>Hold an item in your main hand.</yellow>"
+inspect-no-entity: "<yellow>No entity was found in range.</yellow>"
+inspect-header: "<gold>Content inspection</gold>"
+inspect-line: "<gray>{key}:</gray> <white>{value}</white>"
+
+reload-success: "<green>Safe configuration was reloaded.</green>"
+reload-failed: "<red>Configuration reload failed. Existing settings remain active.</red>"

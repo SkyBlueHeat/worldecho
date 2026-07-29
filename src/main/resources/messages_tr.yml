@@ -1,0 +1,24 @@
+prefix: "<gold>[WorldEcho]</gold> "
+
+plugin-enabled: "<green>WorldEcho etkinleştirildi.</green>"
+plugin-disabled: "<yellow>WorldEcho devre dışı bırakıldı.</yellow>"
+no-permission: "<red>Bu komut için yetkin yok.</red>"
+unknown-subcommand: "<red>Bilinmeyen alt komut.</red>"
+usage: "<yellow>Kullanım: /worldecho <status|recent|inspect|reload></yellow>"
+
+status-header: "<gold>WorldEcho durumu</gold>"
+status-line: "<gray>{key}:</gray> <white>{value}</white>"
+
+recent-header: "<gold>Son dünya hatıraları</gold>"
+recent-empty: "<gray>Henüz bir hatıra kaydedilmedi.</gray>"
+recent-line: "<gray>{time}</gray> <white>{type}</white> <dark_gray>({id})</dark_gray>"
+recent-loading: "<gray>Son hatıralar yükleniyor…</gray>"
+recent-failed: "<red>Hatıralar yüklenemedi. Sunucu logunu kontrol et.</red>"
+
+inspect-no-item: "<yellow>Ana elinde bir eşya tut.</yellow>"
+inspect-no-entity: "<yellow>Menzilde bir varlık bulunamadı.</yellow>"
+inspect-header: "<gold>İçerik incelemesi</gold>"
+inspect-line: "<gray>{key}:</gray> <white>{value}</white>"
+
+reload-success: "<green>Güvenli ayarlar yeniden yüklendi.</green>"
+reload-failed: "<red>Ayarlar yüklenemedi. Mevcut ayarlar kullanılmaya devam ediyor.</red>"

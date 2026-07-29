@@ -1,0 +1,17 @@
+name: WorldEcho
+version: '${version}'
+main: dev.worldecho.paper.WorldEchoPlugin
+description: A provider-neutral living-world memory and story engine for Paper servers.
+authors: [WorldEcho]
+api-version: '26.2'
+load: POSTWORLD
+commands:
+  worldecho:
+    description: WorldEcho administration command
+    usage: /worldecho <status|recent|inspect|reload>
+    aliases: [wecho]
+    permission: worldecho.admin
+permissions:
+  worldecho.admin:
+    description: Allows administration and diagnostics for WorldEcho
+    default: op
