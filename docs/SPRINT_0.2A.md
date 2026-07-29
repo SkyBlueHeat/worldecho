@@ -13,13 +13,15 @@ rank, superior, tags).
 - **Config layer**: `BindingLoader` (validates `bindings.yml` from `ConfigurationSource`),
   `BindingLoadResult` (registry + diagnostics + fatal flag)
 - **Application layer**: `BindingEnricher` (merges configured roles/capabilities with
-  provider-supplied ones without mutation)
+  provider-supplied ones without mutation), `BindingReloadCoordinator` (pure-Java
+  reload decision: fatal on reload keeps previous, fatal on startup falls back to empty)
 - **Resources**: `bindings.yml` default file with example entity and item bindings
 - **Paper layer**: `WorldEchoPlugin` saves/loads/reloads `bindings.yml`, exposes
   `BindingEnricher`; `WorldEchoCommand` shows binding info in `status` and `inspect`
 - **Localization**: `messages_en.yml` and `messages_tr.yml` updated with binding-related keys
 - **Tests**: `BindingLoaderTest` (24 cases), `BindingRegistryTest` (9 cases),
-  `BindingEnricherTest` (9 cases), extended `BundledResourcesTest`
+  `BindingEnricherTest` (9 cases), `BindingReloadCoordinatorTest` (8 cases),
+  extended `BundledResourcesTest`
 
 ## Out of scope
 

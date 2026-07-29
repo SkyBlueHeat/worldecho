@@ -76,8 +76,15 @@ class BundledResourcesTest {
         BindingLoadResult result = BindingLoader.load(
                 new BukkitConfigurationSource(read("bindings.yml")));
 
-        assertTrue(result.registry().entityBindingCount() > 0, "expected at least one entity binding");
-        assertTrue(result.registry().itemBindingCount() > 0, "expected at least one item binding");
+        assertTrue(result.registry().entityBindingCount() >= 2, "expected at least two entity bindings");
+        assertTrue(result.registry().itemBindingCount() >= 2, "expected at least two item bindings");
+
+        assertFalse(result.registry().findEntityBinding(
+                new dev.worldecho.domain.content.ContentKey("mythicmobs", "goblin_soldier")).isEmpty(),
+                "expected mythicmobs:goblin_soldier entity binding");
+        assertFalse(result.registry().findItemBinding(
+                new dev.worldecho.domain.content.ContentKey("oraxen", "flame_sword")).isEmpty(),
+                "expected oraxen:flame_sword item binding");
     }
 
     private static YamlConfiguration read(String resource) {

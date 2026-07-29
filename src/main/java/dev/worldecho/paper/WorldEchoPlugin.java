@@ -1,6 +1,7 @@
 package dev.worldecho.paper;
 
 import dev.worldecho.application.BindingEnricher;
+import dev.worldecho.application.BindingReloadCoordinator;
 import dev.worldecho.application.ItemValueScorer;
 import dev.worldecho.application.MemoryRecorder;
 import dev.worldecho.config.BindingLoadResult;
@@ -239,14 +240,19 @@ public final class WorldEchoPlugin extends JavaPlugin {
             }
         }
 
+        BindingRegistry previousRegistry =
+                bindingEnricher != null ? bindingEnricher.registry() : null;
+        BindingReloadCoordinator.ReloadDecision decision =
+                BindingReloadCoordinator.decide(previousRegistry, result);
+
         List<String> messages = new ArrayList<>();
-        if (result.fatalError() && bindingEnricher != null) {
+        if (decision.keptPrevious()) {
             getLogger().warning("Bindings reload failed; previous registry is kept");
             messages.add("Bindings reload failed; previous registry is kept");
             return messages;
         }
 
-        BindingRegistry registry = result.registry();
+        BindingRegistry registry = decision.registry();
         bindingEnricher = new BindingEnricher(registry);
 
         for (BindingDiagnostic diagnostic : result.diagnostics()) {
@@ -259,9 +265,11 @@ public final class WorldEchoPlugin extends JavaPlugin {
             }
         }
 
-        getLogger().info("Bindings loaded: " + registry.entityBindingCount() + " entity, "
+        String summary = "Bindings: " + registry.entityBindingCount() + " entity, "
                 + registry.itemBindingCount() + " item, "
-                + registry.warningCount() + " warning(s), " + registry.errorCount() + " error(s)");
+                + registry.warningCount() + " warning(s), " + registry.errorCount() + " error(s)";
+        getLogger().info(summary);
+        messages.add(summary);
 
         return messages;
     }

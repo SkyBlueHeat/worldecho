@@ -23,6 +23,7 @@ Requires JDK 25. The wrapper pins Gradle 9.6.1.
 | `BindingLoaderTest` | Schema validation, malformed keys, unknown roles/capabilities, wrong types, duplicate tags, missing version, partial loading |
 | `BindingRegistryTest` | Entity/item namespace separation, lookup, counts, immutability, diagnostics counting |
 | `BindingEnricherTest` | Role/capability merging, base content not mutated, entity/item isolation, metadata preservation |
+| `BindingReloadCoordinatorTest` | Startup vs reload fatal handling, previous registry kept on fatal, idempotent reload, atomic replacement |
 
 `shadowJar` is finalized by `shadowJarSmokeTest`, which opens a real SQLite database using
 **only** the shaded JAR. Unit tests run against the un-shadowed classpath, so they cannot

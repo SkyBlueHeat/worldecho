@@ -57,6 +57,23 @@ bindings:
       tags:
         - undead
 
+    # Example: a MythicMobs entity binding. This binding is valid even when
+    # MythicMobs is not installed. It becomes useful when the MythicMobs bridge
+    # (Sprint 0.4) identifies this content key.
+    mythicmobs:goblin_soldier:
+      roles:
+        - soldier
+      capabilities:
+        - can-fight
+        - can-hold-items
+        - can-be-promoted
+      faction: goblin_clans
+      rank: soldier
+      superior: mythicmobs:goblin_captain
+      tags:
+        - goblin
+        - humanoid
+
   items:
     minecraft:diamond_sword:
       roles:
@@ -67,3 +84,19 @@ bindings:
         - can-be-lost
       tags:
         - weapon
+
+    # Example: an Oraxen item binding. This binding is valid even when
+    # Oraxen is not installed. It becomes useful when the Oraxen bridge
+    # (Sprint 0.5) identifies this content key.
+    oraxen:flame_sword:
+      roles:
+        - weapon
+        - relic
+      capabilities:
+        - can-change-owner
+        - can-be-stolen
+        - can-have-history
+      faction: goblin_clans
+      tags:
+        - weapon
+        - fire

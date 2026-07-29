@@ -50,6 +50,8 @@
   empty registry
 - `BindingEnricher` merges configured roles and capabilities with provider-supplied ones
   without mutating the original `IdentifiedContent`
+- `BindingReloadCoordinator` extracts reload decision logic (fatal on reload keeps
+  previous registry; fatal on startup falls back to empty) into testable pure-Java code
 - `ContentKey.parse(String)` splits `provider:contentId` strings with validation
 - `/worldecho status` now shows entity/item binding counts, warnings, errors, and schema
   version
@@ -58,7 +60,8 @@
 - `/worldecho reload` now reloads `bindings.yml` in addition to `config.yml` and messages
 - `bindings.yml` shipped as a default resource with example entity and item bindings
 - Tests: `BindingLoaderTest` (24 cases), `BindingRegistryTest` (9 cases),
-  `BindingEnricherTest` (9 cases), and extended `BundledResourcesTest`
+  `BindingEnricherTest` (9 cases), `BindingReloadCoordinatorTest` (8 cases),
+  and extended `BundledResourcesTest`
 
 ### Known limitations
 
