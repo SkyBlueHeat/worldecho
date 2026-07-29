@@ -1,94 +1,84 @@
 package dev.worldecho.persistence;
 
+import dev.worldecho.persistence.migration.SchemaMigrator;
+import org.sqlite.SQLiteConfig;
+import org.sqlite.SQLiteDataSource;
+
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
-import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
 
+/**
+ * Owns the SQLite file, its connection settings, and its schema version.
+ *
+ * <p>Every method here blocks on disk I/O and must therefore be called from a WorldEcho
+ * worker thread, never from the server thread.</p>
+ */
 public final class DatabaseManager {
 
-    private final String jdbcUrl;
+    private final Path databasePath;
+    private final SQLiteDataSource dataSource;
 
     public DatabaseManager(Path databasePath) {
-        this.jdbcUrl = "jdbc:sqlite:" + databasePath.toAbsolutePath();
+        this.databasePath = databasePath.toAbsolutePath();
+
+        SQLiteConfig config = new SQLiteConfig();
+        config.setJournalMode(SQLiteConfig.JournalMode.WAL);
+        config.setSynchronous(SQLiteConfig.SynchronousMode.NORMAL);
+        config.enforceForeignKeys(true);
+        config.setBusyTimeout(5_000);
+
+        this.dataSource = new SQLiteDataSource(config);
+        this.dataSource.setUrl("jdbc:sqlite:" + this.databasePath);
     }
 
-    public void initialize() throws SQLException, IOException {
-        Path path = Path.of(jdbcUrl.substring("jdbc:sqlite:".length()));
-        Files.createDirectories(path.getParent());
+    /**
+     * Creates the database file if needed and applies pending migrations.
+     *
+     * @return the number of migrations applied by this call
+     */
+    public int initialize() throws SQLException, IOException {
+        Path parent = databasePath.getParent();
+        if (parent != null) {
+            Files.createDirectories(parent);
+        }
 
         try (Connection connection = openConnection()) {
-            configure(connection);
-            migrate(connection);
+            return SchemaMigrator.migrate(connection);
         }
     }
 
     public Connection openConnection() throws SQLException {
-        Connection connection = DriverManager.getConnection(jdbcUrl);
-        configure(connection);
-        return connection;
+        return dataSource.getConnection();
     }
 
-    private void configure(Connection connection) throws SQLException {
-        try (Statement statement = connection.createStatement()) {
-            statement.execute("PRAGMA foreign_keys = ON");
-            statement.execute("PRAGMA journal_mode = WAL");
-            statement.execute("PRAGMA busy_timeout = 5000");
+    public int schemaVersion() throws SQLException {
+        try (Connection connection = openConnection()) {
+            return SchemaMigrator.currentVersion(connection);
         }
     }
 
-    private void migrate(Connection connection) throws SQLException {
-        try (Statement statement = connection.createStatement()) {
-            statement.execute("""
-                    CREATE TABLE IF NOT EXISTS schema_version (
-                        version INTEGER NOT NULL
-                    )
-                    """);
-            statement.execute("""
-                    INSERT INTO schema_version(version)
-                    SELECT 0
-                    WHERE NOT EXISTS (SELECT 1 FROM schema_version)
-                    """);
-            statement.execute("""
-                    CREATE TABLE IF NOT EXISTS story_events (
-                        id TEXT PRIMARY KEY,
-                        event_type TEXT NOT NULL,
-                        occurred_at INTEGER NOT NULL,
-                        world_id TEXT NOT NULL,
-                        x INTEGER NOT NULL,
-                        y INTEGER NOT NULL,
-                        z INTEGER NOT NULL,
-                        player_id TEXT NOT NULL,
-                        actor_provider TEXT NOT NULL,
-                        actor_content_id TEXT NOT NULL,
-                        actor_runtime_id TEXT NOT NULL,
-                        item_provider TEXT,
-                        item_content_id TEXT,
-                        item_snapshot TEXT NOT NULL,
-                        details TEXT NOT NULL
-                    )
-                    """);
-            statement.execute("""
-                    CREATE INDEX IF NOT EXISTS idx_story_events_occurred_at
-                    ON story_events(occurred_at DESC)
-                    """);
-            statement.execute("""
-                    CREATE INDEX IF NOT EXISTS idx_story_events_player_id
-                    ON story_events(player_id)
-                    """);
-            statement.execute("""
-                    CREATE INDEX IF NOT EXISTS idx_story_events_type
-                    ON story_events(event_type)
-                    """);
-            statement.execute("UPDATE schema_version SET version = 1");
+    /**
+     * Cheap liveness probe used by {@code /worldecho status}.
+     */
+    public boolean healthy() {
+        try (Connection connection = openConnection();
+             Statement statement = connection.createStatement()) {
+            statement.execute("SELECT 1");
+            return true;
+        } catch (SQLException exception) {
+            return false;
         }
+    }
+
+    public Path databasePath() {
+        return databasePath;
     }
 
     public String jdbcUrl() {
-        return jdbcUrl;
+        return "jdbc:sqlite:" + databasePath;
     }
 }

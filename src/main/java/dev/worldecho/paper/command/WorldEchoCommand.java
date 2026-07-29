@@ -1,14 +1,17 @@
 package dev.worldecho.paper.command;
 
 import dev.worldecho.application.ItemValueScorer;
-import dev.worldecho.config.MessageService;
 import dev.worldecho.config.WorldEchoSettings;
 import dev.worldecho.domain.content.IdentifiedContent;
+import dev.worldecho.domain.item.ItemDescriptor;
+import dev.worldecho.domain.item.ItemScore;
 import dev.worldecho.domain.memory.StoryMemoryEvent;
 import dev.worldecho.integration.IntegrationRegistry;
+import dev.worldecho.integration.bukkit.BukkitItems;
+import dev.worldecho.paper.message.PaperMessageService;
+import dev.worldecho.persistence.DatabaseManager;
 import dev.worldecho.persistence.StoryEventRepository;
 import dev.worldecho.persistence.StoryWriteQueue;
-import org.bukkit.Bukkit;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -16,51 +19,71 @@ import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.plugin.Plugin;
 import org.bukkit.util.RayTraceResult;
 
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
-import java.util.concurrent.CompletableFuture;
+import java.util.Collection;
+import java.util.concurrent.Executor;
+import java.util.function.Consumer;
 import java.util.function.Supplier;
+import java.util.logging.Level;
 
+/**
+ * Administration command. Database access always runs on the WorldEcho query executor and
+ * results are sent back on the server thread.
+ */
 public final class WorldEchoCommand implements CommandExecutor, TabCompleter {
 
-    private static final DateTimeFormatter DATE_FORMATTER =
-            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
-                    .withZone(ZoneId.systemDefault());
+    public static final String PERMISSION = "worldecho.admin";
 
-    private final JavaPlugin plugin;
+    private static final double ENTITY_TRACE_DISTANCE = 12.0d;
+    private static final List<String> SUBCOMMANDS =
+            List.of("status", "recent", "inspect", "reload");
+    private static final List<String> INSPECT_TARGETS = List.of("item", "entity");
+    private static final DateTimeFormatter TIME_FORMATTER =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.systemDefault());
+
+    private final Plugin plugin;
     private final Supplier<WorldEchoSettings> settingsSupplier;
-    private final Supplier<MessageService> messageSupplier;
+    private final Supplier<PaperMessageService> messageSupplier;
+    private final Supplier<ItemValueScorer> scorerSupplier;
     private final IntegrationRegistry integrations;
+    private final DatabaseManager databaseManager;
     private final StoryEventRepository repository;
     private final StoryWriteQueue writeQueue;
-    private final ItemValueScorer itemValueScorer;
-    private final Runnable reloadAction;
+    private final Executor queryExecutor;
+    private final Supplier<List<String>> reloadAction;
 
     public WorldEchoCommand(
-            JavaPlugin plugin,
+            Plugin plugin,
             Supplier<WorldEchoSettings> settingsSupplier,
-            Supplier<MessageService> messageSupplier,
+            Supplier<PaperMessageService> messageSupplier,
+            Supplier<ItemValueScorer> scorerSupplier,
             IntegrationRegistry integrations,
+            DatabaseManager databaseManager,
             StoryEventRepository repository,
             StoryWriteQueue writeQueue,
-            ItemValueScorer itemValueScorer,
-            Runnable reloadAction
+            Executor queryExecutor,
+            Supplier<List<String>> reloadAction
     ) {
-        this.plugin = plugin;
-        this.settingsSupplier = settingsSupplier;
-        this.messageSupplier = messageSupplier;
-        this.integrations = integrations;
-        this.repository = repository;
-        this.writeQueue = writeQueue;
-        this.itemValueScorer = itemValueScorer;
-        this.reloadAction = reloadAction;
+        this.plugin = Objects.requireNonNull(plugin, "plugin");
+        this.settingsSupplier = Objects.requireNonNull(settingsSupplier, "settingsSupplier");
+        this.messageSupplier = Objects.requireNonNull(messageSupplier, "messageSupplier");
+        this.scorerSupplier = Objects.requireNonNull(scorerSupplier, "scorerSupplier");
+        this.integrations = Objects.requireNonNull(integrations, "integrations");
+        this.databaseManager = Objects.requireNonNull(databaseManager, "databaseManager");
+        this.repository = Objects.requireNonNull(repository, "repository");
+        this.writeQueue = Objects.requireNonNull(writeQueue, "writeQueue");
+        this.queryExecutor = Objects.requireNonNull(queryExecutor, "queryExecutor");
+        this.reloadAction = Objects.requireNonNull(reloadAction, "reloadAction");
     }
 
     @Override
@@ -70,217 +93,238 @@ public final class WorldEchoCommand implements CommandExecutor, TabCompleter {
             String label,
             String[] args
     ) {
-        if (!sender.hasPermission("worldecho.admin")) {
-            sender.sendMessage(messageSupplier.get().component("no-permission"));
+        if (!sender.hasPermission(PERMISSION)) {
+            messages().send(sender, "no-permission");
             return true;
         }
 
         if (args.length == 0) {
-            sender.sendMessage(messageSupplier.get().component("usage"));
+            messages().send(sender, "usage");
             return true;
         }
 
-        return switch (args[0].toLowerCase(Locale.ROOT)) {
+        switch (args[0].toLowerCase(Locale.ROOT)) {
             case "status" -> status(sender);
             case "recent" -> recent(sender, args);
             case "inspect" -> inspect(sender, args);
             case "reload" -> reload(sender);
-            default -> {
-                sender.sendMessage(
-                        messageSupplier.get().component("unknown-subcommand")
-                );
-                yield true;
-            }
-        };
-    }
-
-    private boolean status(CommandSender sender) {
-        MessageService messages = messageSupplier.get();
-        sender.sendMessage(messages.component("status-header"));
-        statusLine(sender, "version", plugin.getPluginMeta().getVersion());
-        statusLine(sender, "database", "initialized");
-        StoryWriteQueue.QueueStatus queue = writeQueue.status();
-        statusLine(sender, "queue.pending", Long.toString(queue.pending()));
-        statusLine(sender, "queue.failed", Long.toString(queue.failed()));
-        statusLine(sender, "providers", String.join(", ", integrations.providerStatus()));
-
-        CompletableFuture
-                .supplyAsync(() -> {
-                    try {
-                        return repository.count();
-                    } catch (Exception exception) {
-                        throw new RuntimeException(exception);
-                    }
-                })
-                .whenComplete((count, throwable) ->
-                        Bukkit.getScheduler().runTask(plugin, () -> {
-                            if (throwable == null) {
-                                statusLine(sender, "events", Long.toString(count));
-                            } else {
-                                statusLine(sender, "events", "error");
-                                plugin.getLogger().warning(
-                                        "Could not count story events: "
-                                                + throwable.getMessage()
-                                );
-                            }
-                        })
-                );
+            default -> messages().send(sender, "unknown-subcommand");
+        }
 
         return true;
     }
 
-    private void statusLine(CommandSender sender, String key, String value) {
-        sender.sendMessage(messageSupplier.get().component(
-                "status-line",
-                Map.of("key", key, "value", value)
-        ));
+    private void status(CommandSender sender) {
+        WorldEchoSettings settings = settingsSupplier.get();
+        StoryWriteQueue.QueueStatus queue = writeQueue.status();
+
+        messages().send(sender, "status-header");
+        line(sender, "version", plugin.getPluginMeta().getVersion());
+        line(sender, "locale", settings.locale());
+        line(sender, "queue.pending", Integer.toString(queue.pending()));
+        line(sender, "queue.written", Long.toString(queue.written()));
+        line(sender, "queue.failed", Long.toString(queue.failed()));
+        line(sender, "queue.dropped", Long.toString(queue.dropped()));
+        line(sender, "providers", String.join(", ", integrations.describeProviders()));
+
+        query(
+                sender,
+                () -> new DatabaseStatus(
+                        databaseManager.healthy(),
+                        databaseManager.schemaVersion(),
+                        repository.count()
+                ),
+                status -> {
+                    line(sender, "database", status.healthy() ? "ok" : "unavailable");
+                    line(sender, "schema.version", Integer.toString(status.schemaVersion()));
+                    line(sender, "events", Long.toString(status.events()));
+                },
+                "status-failed"
+        );
     }
 
-    private boolean recent(CommandSender sender, String[] args) {
+    private void recent(CommandSender sender, String[] args) {
         WorldEchoSettings settings = settingsSupplier.get();
         int requested = settings.recentDefaultCount();
 
         if (args.length >= 2) {
             try {
                 requested = Integer.parseInt(args[1]);
-            } catch (NumberFormatException ignored) {
-                requested = settings.recentDefaultCount();
+            } catch (NumberFormatException exception) {
+                messages().send(sender, "recent-invalid-count",
+                        Map.of("value", args[1], "default", Integer.toString(requested)));
             }
         }
 
         int count = Math.max(1, Math.min(requested, settings.recentMaximumCount()));
-        sender.sendMessage(messageSupplier.get().component("recent-loading"));
+        messages().send(sender, "recent-loading", Map.of("count", Integer.toString(count)));
 
-        CompletableFuture
-                .supplyAsync(() -> {
-                    try {
-                        return repository.findRecent(count);
-                    } catch (Exception exception) {
-                        throw new RuntimeException(exception);
-                    }
-                })
-                .whenComplete((events, throwable) ->
-                        Bukkit.getScheduler().runTask(plugin, () ->
-                                showRecent(sender, events, throwable))
-                );
-
-        return true;
+        query(
+                sender,
+                () -> repository.findRecent(count),
+                events -> showRecent(sender, events),
+                "recent-failed"
+        );
     }
 
-    private void showRecent(
-            CommandSender sender,
-            List<StoryMemoryEvent> events,
-            Throwable throwable
-    ) {
-        MessageService messages = messageSupplier.get();
-        if (throwable != null) {
-            plugin.getLogger().warning(
-                    "Could not load recent memories: " + throwable.getMessage()
-            );
-            sender.sendMessage(messages.component("recent-failed"));
-            return;
-        }
-
-        sender.sendMessage(messages.component("recent-header"));
+    private void showRecent(CommandSender sender, List<StoryMemoryEvent> events) {
+        messages().send(sender, "recent-header");
         if (events.isEmpty()) {
-            sender.sendMessage(messages.component("recent-empty"));
+            messages().send(sender, "recent-empty");
             return;
         }
 
         for (StoryMemoryEvent event : events) {
-            sender.sendMessage(messages.component(
-                    "recent-line",
-                    Map.of(
-                            "time", DATE_FORMATTER.format(event.occurredAt()),
-                            "type", event.type().name(),
-                            "id", event.id().toString().substring(0, 8)
-                    )
+            messages().send(sender, "recent-line", Map.of(
+                    "time", TIME_FORMATTER.format(event.occurredAt()),
+                    "type", event.type().name(),
+                    "actor", event.actor().toString(),
+                    "item", event.optionalItem().map(Object::toString).orElse("-"),
+                    "id", event.id().toString().substring(0, 8)
             ));
         }
     }
 
-    private boolean inspect(CommandSender sender, String[] args) {
+    private void inspect(CommandSender sender, String[] args) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage(messageSupplier.get().component("usage"));
-            return true;
+            messages().send(sender, "players-only");
+            return;
         }
 
         if (args.length < 2) {
-            sender.sendMessage(messageSupplier.get().component("usage"));
-            return true;
+            messages().send(sender, "inspect-usage");
+            return;
         }
 
-        return switch (args[1].toLowerCase(Locale.ROOT)) {
+        switch (args[1].toLowerCase(Locale.ROOT)) {
             case "item" -> inspectItem(player);
             case "entity" -> inspectEntity(player);
-            default -> {
-                sender.sendMessage(messageSupplier.get().component("usage"));
-                yield true;
-            }
-        };
+            default -> messages().send(sender, "inspect-usage");
+        }
     }
 
-    private boolean inspectItem(Player player) {
+    private void inspectItem(Player player) {
         ItemStack item = player.getInventory().getItemInMainHand();
         if (item.getType().isAir()) {
-            player.sendMessage(messageSupplier.get().component("inspect-no-item"));
-            return true;
+            messages().send(player, "inspect-no-item");
+            return;
         }
 
         Optional<IdentifiedContent> identified = integrations.identifyItem(item);
         if (identified.isEmpty()) {
-            player.sendMessage(messageSupplier.get().component("inspect-no-item"));
-            return true;
+            messages().send(player, "inspect-no-item");
+            return;
         }
 
+        ItemDescriptor descriptor =
+                BukkitItems.describe(item, identified.get().key().providerId());
+        ItemScore score = scorerSupplier.get().score(descriptor);
+
         showContent(player, identified.get());
-        statusLine(player, "score", Integer.toString(itemValueScorer.score(item)));
-        return true;
+        line(player, "material", descriptor.materialKey());
+        line(player, "score", Integer.toString(score.value()));
+        line(player, "score.factors", score.explain());
+        line(player, "minimum-score",
+                Integer.toString(settingsSupplier.get().minimumItemScore()));
     }
 
-    private boolean inspectEntity(Player player) {
+    private void inspectEntity(Player player) {
         RayTraceResult result = player.getWorld().rayTraceEntities(
                 player.getEyeLocation(),
                 player.getEyeLocation().getDirection(),
-                12.0,
+                ENTITY_TRACE_DISTANCE,
                 entity -> !entity.getUniqueId().equals(player.getUniqueId())
         );
 
         Entity entity = result == null ? null : result.getHitEntity();
         if (entity == null) {
-            player.sendMessage(messageSupplier.get().component("inspect-no-entity"));
-            return true;
+            messages().send(player, "inspect-no-entity");
+            return;
         }
 
         Optional<IdentifiedContent> identified = integrations.identifyEntity(entity);
         if (identified.isEmpty()) {
-            player.sendMessage(messageSupplier.get().component("inspect-no-entity"));
-            return true;
+            messages().send(player, "inspect-no-entity");
+            return;
         }
 
         showContent(player, identified.get());
-        return true;
+        line(player, "runtime-id", entity.getUniqueId().toString());
     }
 
     private void showContent(CommandSender sender, IdentifiedContent content) {
-        sender.sendMessage(messageSupplier.get().component("inspect-header"));
-        statusLine(sender, "key", content.key().toString());
-        statusLine(sender, "display", content.displayName());
-        statusLine(sender, "roles", content.roles().toString());
-        statusLine(sender, "capabilities", content.capabilities().toString());
+        messages().send(sender, "inspect-header");
+        line(sender, "key", content.key().toString());
+        line(sender, "display", content.displayName());
+        line(sender, "roles", describe(content.roles()));
+        line(sender, "capabilities", describe(content.capabilities()));
     }
 
-    private boolean reload(CommandSender sender) {
+    private void reload(CommandSender sender) {
         try {
-            reloadAction.run();
-            sender.sendMessage(messageSupplier.get().component("reload-success"));
+            List<String> warnings = reloadAction.get();
+            messages().send(sender, "reload-success");
+            for (String warning : warnings) {
+                messages().send(sender, "reload-warning", Map.of("warning", warning));
+            }
         } catch (RuntimeException exception) {
-            plugin.getLogger().severe(
-                    "WorldEcho config reload failed: " + exception.getMessage()
-            );
-            sender.sendMessage(messageSupplier.get().component("reload-failed"));
+            plugin.getLogger().log(Level.SEVERE, "WorldEcho configuration reload failed", exception);
+            messages().send(sender, "reload-failed");
         }
-        return true;
+    }
+
+    /**
+     * Runs a blocking database call on the query executor and delivers the result on the
+     * server thread.
+     */
+    private <T> void query(
+            CommandSender sender,
+            ThrowingSupplier<T> supplier,
+            Consumer<T> consumer,
+            String failureKey
+    ) {
+        queryExecutor.execute(() -> {
+            T value = null;
+            Exception failure = null;
+            try {
+                value = supplier.get();
+            } catch (Exception exception) {
+                failure = exception;
+            }
+
+            T result = value;
+            Exception thrown = failure;
+            runOnServerThread(() -> {
+                if (thrown != null) {
+                    plugin.getLogger().log(Level.WARNING, "WorldEcho query failed", thrown);
+                    messages().send(sender, failureKey);
+                    return;
+                }
+                consumer.accept(result);
+            });
+        });
+    }
+
+    private void runOnServerThread(Runnable runnable) {
+        if (!plugin.isEnabled()) {
+            return;
+        }
+        plugin.getServer().getScheduler().runTask(plugin, runnable);
+    }
+
+    private void line(CommandSender sender, String key, String value) {
+        messages().send(sender, "status-line", Map.of("key", key, "value", value));
+    }
+
+    private PaperMessageService messages() {
+        return messageSupplier.get();
+    }
+
+    private static String describe(Collection<? extends Enum<?>> values) {
+        if (values.isEmpty()) {
+            return "-";
+        }
+        return values.stream().map(Enum::name).sorted().reduce((a, b) -> a + ", " + b).orElse("-");
     }
 
     @Override
@@ -290,18 +334,48 @@ public final class WorldEchoCommand implements CommandExecutor, TabCompleter {
             String alias,
             String[] args
     ) {
+        if (!sender.hasPermission(PERMISSION)) {
+            return List.of();
+        }
+
         if (args.length == 1) {
-            return List.of("status", "recent", "inspect", "reload").stream()
-                    .filter(value -> value.startsWith(args[0].toLowerCase(Locale.ROOT)))
-                    .toList();
+            return filter(SUBCOMMANDS, args[0]);
         }
 
         if (args.length == 2 && args[0].equalsIgnoreCase("inspect")) {
-            return List.of("item", "entity").stream()
-                    .filter(value -> value.startsWith(args[1].toLowerCase(Locale.ROOT)))
-                    .toList();
+            return filter(INSPECT_TARGETS, args[1]);
+        }
+
+        if (args.length == 2 && args[0].equalsIgnoreCase("recent")) {
+            WorldEchoSettings settings = settingsSupplier.get();
+            return filter(
+                    List.of(
+                            Integer.toString(settings.recentDefaultCount()),
+                            Integer.toString(settings.recentMaximumCount())
+                    ),
+                    args[1]
+            );
         }
 
         return List.of();
+    }
+
+    private static List<String> filter(List<String> candidates, String prefix) {
+        String normalized = prefix.toLowerCase(Locale.ROOT);
+        List<String> matches = new ArrayList<>();
+        for (String candidate : candidates) {
+            if (candidate.startsWith(normalized)) {
+                matches.add(candidate);
+            }
+        }
+        return List.copyOf(matches);
+    }
+
+    @FunctionalInterface
+    private interface ThrowingSupplier<T> {
+        T get() throws Exception;
+    }
+
+    private record DatabaseStatus(boolean healthy, int schemaVersion, long events) {
     }
 }

@@ -6,19 +6,25 @@ import dev.worldecho.domain.content.IdentifiedContent;
 import dev.worldecho.domain.content.SemanticRole;
 import dev.worldecho.integration.ItemContentProvider;
 import dev.worldecho.integration.ProviderHealth;
+import dev.worldecho.integration.bukkit.BukkitItems;
+import org.bukkit.Material;
 import org.bukkit.Tag;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.Damageable;
 
 import java.util.EnumSet;
 import java.util.Optional;
 import java.util.Set;
 
+/**
+ * Fallback provider that maps any Bukkit item stack to semantic roles and capabilities.
+ */
 public final class VanillaItemProvider implements ItemContentProvider {
+
+    public static final String PROVIDER_ID = "vanilla";
 
     @Override
     public String providerId() {
-        return "vanilla";
+        return PROVIDER_ID;
     }
 
     @Override
@@ -38,34 +44,37 @@ public final class VanillaItemProvider implements ItemContentProvider {
 
     @Override
     public Optional<IdentifiedContent> identify(ItemStack itemStack) {
-        EnumSet<SemanticRole> roles = EnumSet.noneOf(SemanticRole.class);
-        EnumSet<Capability> capabilities = EnumSet.of(
+        if (!supports(itemStack)) {
+            return Optional.empty();
+        }
+
+        Material material = itemStack.getType();
+        Set<SemanticRole> roles = EnumSet.noneOf(SemanticRole.class);
+        Set<Capability> capabilities = EnumSet.of(
                 Capability.CAN_HAVE_HISTORY,
                 Capability.CAN_CHANGE_OWNER,
                 Capability.CAN_BE_STOLEN,
                 Capability.CAN_BE_LOST
         );
 
-        if (Tag.ITEMS_SWORDS.isTagged(itemStack.getType())
-                || Tag.ITEMS_AXES.isTagged(itemStack.getType())) {
+        if (Tag.ITEMS_SWORDS.isTagged(material) || Tag.ITEMS_AXES.isTagged(material)) {
             roles.add(SemanticRole.WEAPON);
-            roles.add(SemanticRole.LEGENDARY_CANDIDATE);
         }
 
-        if (itemStack.getType().name().endsWith("_HELMET")
-                || itemStack.getType().name().endsWith("_CHESTPLATE")
-                || itemStack.getType().name().endsWith("_LEGGINGS")
-                || itemStack.getType().name().endsWith("_BOOTS")) {
+        if (Tag.ITEMS_HEAD_ARMOR.isTagged(material)
+                || Tag.ITEMS_CHEST_ARMOR.isTagged(material)
+                || Tag.ITEMS_LEG_ARMOR.isTagged(material)
+                || Tag.ITEMS_FOOT_ARMOR.isTagged(material)) {
             roles.add(SemanticRole.ARMOR);
         }
 
-        String displayName = itemStack.hasItemMeta() && itemStack.getItemMeta().hasDisplayName()
-                ? itemStack.getItemMeta().getDisplayName()
-                : itemStack.getType().translationKey();
+        if (material.getMaxDurability() > 0) {
+            capabilities.add(Capability.CAN_BECOME_HEIRLOOM);
+        }
 
         return Optional.of(new IdentifiedContent(
-                new ContentKey(providerId(), itemStack.getType().getKey().asString()),
-                displayName,
+                new ContentKey(PROVIDER_ID, material.getKey().asString()),
+                BukkitItems.displayName(itemStack),
                 roles,
                 capabilities
         ));

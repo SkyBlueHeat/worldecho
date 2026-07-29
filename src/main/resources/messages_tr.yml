@@ -1,24 +1,29 @@
-prefix: "<gold>[WorldEcho]</gold> "
+# WorldEcho Türkçe mesajları. MiniMessage biçimlendirmesi desteklenir.
+# Yer tutucular {ad} biçimindedir ve yerleştirilmeden önce temizlenir.
 
-plugin-enabled: "<green>WorldEcho etkinleştirildi.</green>"
-plugin-disabled: "<yellow>WorldEcho devre dışı bırakıldı.</yellow>"
-no-permission: "<red>Bu komut için yetkin yok.</red>"
-unknown-subcommand: "<red>Bilinmeyen alt komut.</red>"
-usage: "<yellow>Kullanım: /worldecho <status|recent|inspect|reload></yellow>"
+prefix: "<gray>[<aqua>WorldEcho</aqua>]</gray> "
 
-status-header: "<gold>WorldEcho durumu</gold>"
+no-permission: "<red>Bu komutu kullanma yetkiniz yok.</red>"
+players-only: "<red>Bu alt komut yalnızca oyuncular tarafından kullanılabilir.</red>"
+usage: "<white>Kullanım: /worldecho status | recent [adet] | inspect item | inspect entity | reload</white>"
+unknown-subcommand: "<red>Bilinmeyen alt komut. Yardım için /worldecho yazın.</red>"
+
+status-header: "<aqua>Hafıza çekirdeği durumu</aqua>"
 status-line: "<gray>{key}:</gray> <white>{value}</white>"
+status-failed: "<red>Veritabanı durumu okunamadı. Sunucu günlüğüne bakın.</red>"
 
-recent-header: "<gold>Son dünya hatıraları</gold>"
-recent-empty: "<gray>Henüz bir hatıra kaydedilmedi.</gray>"
-recent-line: "<gray>{time}</gray> <white>{type}</white> <dark_gray>({id})</dark_gray>"
-recent-loading: "<gray>Son hatıralar yükleniyor…</gray>"
-recent-failed: "<red>Hatıralar yüklenemedi. Sunucu logunu kontrol et.</red>"
+recent-loading: "<gray>En son {count} hatıra yükleniyor...</gray>"
+recent-header: "<aqua>Son hatıralar</aqua>"
+recent-empty: "<gray>Henüz hiçbir hatıra kaydedilmedi.</gray>"
+recent-line: "<gray>{time}</gray> <white>{type}</white> <gray>fail=</gray><white>{actor}</white> <gray>eşya=</gray><white>{item}</white> <dark_gray>{id}</dark_gray>"
+recent-failed: "<red>Son hatıralar okunamadı. Sunucu günlüğüne bakın.</red>"
+recent-invalid-count: "<yellow>'{value}' bir sayı değil; {default} kullanılıyor.</yellow>"
 
-inspect-no-item: "<yellow>Ana elinde bir eşya tut.</yellow>"
-inspect-no-entity: "<yellow>Menzilde bir varlık bulunamadı.</yellow>"
-inspect-header: "<gold>İçerik incelemesi</gold>"
-inspect-line: "<gray>{key}:</gray> <white>{value}</white>"
+inspect-usage: "<white>Kullanım: /worldecho inspect item | /worldecho inspect entity</white>"
+inspect-header: "<aqua>İçerik kimliği</aqua>"
+inspect-no-item: "<yellow>İncelemek için ana elinizde bir eşya tutun.</yellow>"
+inspect-no-entity: "<yellow>İncelemek için 12 blok içindeki bir varlığa bakın.</yellow>"
 
-reload-success: "<green>Güvenli ayarlar yeniden yüklendi.</green>"
-reload-failed: "<red>Ayarlar yüklenemedi. Mevcut ayarlar kullanılmaya devam ediyor.</red>"
+reload-success: "<green>Yapılandırma ve mesajlar yeniden yüklendi.</green>"
+reload-warning: "<yellow>{warning}</yellow>"
+reload-failed: "<red>Yeniden yükleme başarısız. Önceki yapılandırma etkin kalmaya devam ediyor.</red>"

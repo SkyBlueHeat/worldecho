@@ -8,22 +8,31 @@ The server owner supplies content through plugins such as MythicMobs, Oraxen, It
 
 ## Status
 
-This repository is a **Sprint 1 starter scaffold**, not a public release.
+This repository implements the **Sprint 1 memory kernel**, not a public release.
 
-Current implemented foundation:
+The implemented vertical slice is:
 
-- Paper 26.2 / Java 25 Gradle project
-- SQLite schema and repository
-- asynchronous single-writer persistence queue
-- provider-neutral content identity API
-- vanilla entity and item providers
-- integration registry foundation
-- player-death memory capture
-- valuable-drop candidate detection
-- scenario compatibility domain model
-- `/worldecho status`, `/worldecho recent`, and `/worldecho inspect`
-- English and Turkish configuration/message placeholders
-- unit tests for capability matching
+> When a living entity kills a player, WorldEcho identifies the killer through the provider
+> registry, selects the most valuable eligible dropped item, creates an immutable
+> provider-neutral memory event, persists it asynchronously, and exposes it through admin
+> commands.
+
+Current foundation:
+
+- Paper 26.2 / Java 25 Gradle project with a committed Gradle 9.6.1 wrapper
+- SQLite storage with versioned, idempotent migrations and indexed lookups
+- bounded single-writer persistence queue and a separate reader thread
+- provider-neutral content identity API with priority ordering and vanilla fallback
+- a failing bridge suppresses itself instead of disabling the core
+- player-death capture that reads Bukkit state only on the server thread
+- deterministic, configuration-driven item value scoring with an explainable breakdown
+- `/worldecho status`, `recent`, `inspect item|entity`, and `reload`
+- English and Turkish message files with sanitized placeholders
+- unit tests for scoring, mapping, configuration, messages, providers, migrations,
+  persistence, and the shipped resources
+
+Not implemented yet (Sprint 2 and later): item ownership transfer, captains, factions,
+rumors, story generation, and external content bridges.
 
 ## Core product rule
 
@@ -31,11 +40,11 @@ Current implemented foundation:
 
 ## Build
 
-Use Java 25 and Gradle 9.6.1.
+Requires JDK 25. The Gradle wrapper is committed, so no local Gradle installation is
+needed.
 
 ```bash
-gradle wrapper --gradle-version 9.6.1
-./gradlew clean build
+./gradlew clean test shadowJar
 ```
 
 The distributable JAR is produced under:
@@ -44,11 +53,28 @@ The distributable JAR is produced under:
 build/libs/worldecho-0.1.0-SNAPSHOT.jar
 ```
 
+SQLite is shaded into the JAR (deliberately **not** relocated, so its native library keeps
+binding) and the Paper API is not packaged. `shadowJar` is finalized by a smoke test that
+opens a SQLite database using only the shaded JAR.
+
 ## Runtime
 
 Place the JAR in a Paper 26.2 server's `plugins` directory.
 
-This first scaffold has no hard dependency on any external content plugin.
+WorldEcho has no hard dependency on any external content plugin and starts with none
+installed.
+
+### Commands
+
+All subcommands require the `worldecho.admin` permission (default: op).
+
+| Command | Description |
+| --- | --- |
+| `/worldecho status` | Version, locale, queue counters, providers, database health, schema version, event count |
+| `/worldecho recent [count]` | Most recent memories, read off the server thread |
+| `/worldecho inspect item` | Provider, content ID, roles, capabilities, and the score breakdown of the held item |
+| `/worldecho inspect entity` | Provider, content ID, roles, and capabilities of the entity you are looking at |
+| `/worldecho reload` | Re-reads `config.yml` and the message files only |
 
 ## Documentation
 
@@ -57,6 +83,9 @@ This first scaffold has no hard dependency on any external content plugin.
 - `docs/ARCHITECTURE.md` — target architecture
 - `docs/SPRINT_1.md` — first implementation slice
 - `docs/ROADMAP.md` — staged delivery plan
+- `docs/CONFIGURATION.md` — every configuration key and the scoring formula
+- `docs/TESTING.md` — automated coverage, what was verified on a real Paper 26.2 server,
+  and the manual checklist
 - `DEVIN_PROMPT.md` — ready-to-paste Devin Agent prompt
 
 ## Important
