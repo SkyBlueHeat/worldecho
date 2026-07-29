@@ -9,6 +9,7 @@ Files live in `plugins/WorldEcho/`:
 | File | Purpose |
 | --- | --- |
 | `config.yml` | Capture rules, item scoring, persistence, command limits |
+| `bindings.yml` | Content bindings: semantic roles, capabilities, faction, rank, tags |
 | `messages_en.yml` | English messages (also the fallback for missing keys) |
 | `messages_tr.yml` | Turkish messages |
 | `worldecho.db` | SQLite database (created automatically) |
@@ -96,6 +97,49 @@ item name cannot inject formatting into an admin message.
 
 ## Reloading
 
-`/worldecho reload` re-reads `config.yml` and the message files only. The database
-connection, the writer thread, and the provider registry keep running, so a reload can
-never lose queued memories. Changing `persistence.*` therefore requires a server restart.
+`/worldecho reload` re-reads `config.yml`, `bindings.yml`, and the message files. The
+database connection, the writer thread, and the provider registry keep running, so a
+reload can never lose queued memories. Changing `persistence.*` therefore requires a
+server restart.
+
+## Content bindings (`bindings.yml`)
+
+Bindings map provider-specific content IDs to WorldEcho semantic metadata. A binding
+**enriches** — never replaces — the roles and capabilities a provider supplies.
+
+### Schema
+
+| Key | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `version` | integer | required | Schema version. Currently `1`. |
+| `bindings.entities` | section | `{}` | Entity bindings keyed by `provider:contentId`. |
+| `bindings.items` | section | `{}` | Item bindings keyed by `provider:contentId`. |
+
+### Binding fields
+
+| Field | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `roles` | list of strings | `[]` | Semantic roles to add. Accepts kebab-case or SCREAMING_SNAKE_CASE. |
+| `capabilities` | list of strings | `[]` | Capabilities to add. Same format as roles. |
+| `faction` | string | absent | Faction identifier (metadata only in Sprint 0.2A). |
+| `rank` | string | absent | Rank identifier (metadata only in Sprint 0.2A). |
+| `superior` | string | absent | Content key of a superior entity (metadata only). |
+| `tags` | list of strings | `[]` | Free-form string tags. |
+
+Valid roles: `PLAYER`, `SOLDIER`, `CAPTAIN`, `COMMANDER`, `MONARCH`, `MERCHANT`,
+`BLACKSMITH`, `HEALER`, `BANDIT`, `ANIMAL`, `MONSTER`, `CIVILIAN`, `WITNESS`, `HEIR`,
+`RIVAL`, `WEAPON`, `ARMOR`, `RELIC`, `LEGENDARY_CANDIDATE`, `FACTION_SYMBOL`,
+`QUEST_OBJECT`, `HEIRLOOM`, `FIRE`, `ICE`.
+
+Valid capabilities: `CAN_FIGHT`, `CAN_SPEAK`, `CAN_HOLD_ITEMS`, `CAN_OWN_ITEMS`,
+`CAN_BE_PROMOTED`, `CAN_COMMAND_UNITS`, `CAN_LEAD_FACTION`, `CAN_RAID_SETTLEMENTS`,
+`CAN_TRADE`, `CAN_CREATE_RIVALRY`, `CAN_BE_CORRUPTED`, `CAN_HAVE_HISTORY`,
+`CAN_CHANGE_OWNER`, `CAN_BE_STOLEN`, `CAN_BE_LOST`, `CAN_BECOME_HEIRLOOM`.
+
+Unknown tokens produce a warning and are excluded but do not prevent loading. A binding
+for an unavailable provider is valid; it becomes useful when the provider later identifies
+that key. Entity and item bindings use separate namespaces, so the same content key may
+appear in both sections.
+
+`faction`, `rank`, `superior`, and `tags` do **not** activate faction behavior,
+promotion, ownership transfer, or story execution. They are stored for future sprints.

@@ -1,5 +1,7 @@
 package dev.worldecho.resources;
 
+import dev.worldecho.config.BindingLoadResult;
+import dev.worldecho.config.BindingLoader;
 import dev.worldecho.config.SettingsLoadResult;
 import dev.worldecho.config.SettingsLoader;
 import dev.worldecho.config.WorldEchoSettings;
@@ -21,7 +23,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Guards the shipped resources: the documented config must produce exactly the built-in
- * defaults, and every English message must have a Turkish counterpart.
+ * defaults, every English message must have a Turkish counterpart, and the bundled
+ * bindings.yml must be parseable with a supported schema version and no errors.
  */
 class BundledResourcesTest {
 
@@ -56,6 +59,32 @@ class BundledResourcesTest {
                 "reload-success", "reload-warning", "reload-failed")) {
             assertTrue(english.isString(key), () -> "missing message key: " + key);
         }
+    }
+
+    @Test
+    void bundledBindingsYmlIsParseableWithSupportedSchema() {
+        BindingLoadResult result = BindingLoader.load(
+                new BukkitConfigurationSource(read("bindings.yml")));
+
+        assertFalse(result.fatalError(), () -> "bindings.yml fatal error: " + result.diagnostics());
+        assertEquals(BindingLoader.SUPPORTED_SCHEMA_VERSION, result.registry().schemaVersion());
+        assertFalse(result.hasErrors(), () -> "bindings.yml errors: " + result.diagnostics());
+    }
+
+    @Test
+    void bundledBindingsYmlHasValidExampleTokens() {
+        BindingLoadResult result = BindingLoader.load(
+                new BukkitConfigurationSource(read("bindings.yml")));
+
+        assertTrue(result.registry().entityBindingCount() >= 2, "expected at least two entity bindings");
+        assertTrue(result.registry().itemBindingCount() >= 2, "expected at least two item bindings");
+
+        assertFalse(result.registry().findEntityBinding(
+                new dev.worldecho.domain.content.ContentKey("mythicmobs", "goblin_soldier")).isEmpty(),
+                "expected mythicmobs:goblin_soldier entity binding");
+        assertFalse(result.registry().findItemBinding(
+                new dev.worldecho.domain.content.ContentKey("oraxen", "flame_sword")).isEmpty(),
+                "expected oraxen:flame_sword item binding");
     }
 
     private static YamlConfiguration read(String resource) {

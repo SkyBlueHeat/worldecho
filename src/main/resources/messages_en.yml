@@ -24,6 +24,6 @@ inspect-header: "<aqua>Content identity</aqua>"
 inspect-no-item: "<yellow>Hold an item in your main hand to inspect it.</yellow>"
 inspect-no-entity: "<yellow>Look at an entity within 12 blocks to inspect it.</yellow>"
 
-reload-success: "<green>Configuration and messages reloaded.</green>"
+reload-success: "<green>Configuration, messages, and bindings reloaded.</green>"
 reload-warning: "<yellow>{warning}</yellow>"
 reload-failed: "<red>Reload failed. The previous configuration is still active.</red>"

@@ -8,7 +8,8 @@ The server owner supplies content through plugins such as MythicMobs, Oraxen, It
 
 ## Status
 
-This repository implements the **Sprint 1 memory kernel**, not a public release.
+This repository implements **Sprint 0.2A — Content Bindings**, extending the Sprint 1
+memory kernel with a provider-neutral binding layer.
 
 The implemented vertical slice is:
 
@@ -26,13 +27,16 @@ Current foundation:
 - a failing bridge suppresses itself instead of disabling the core
 - player-death capture that reads Bukkit state only on the server thread
 - deterministic, configuration-driven item value scoring with an explainable breakdown
+- content bindings: `bindings.yml` maps provider content IDs to semantic roles,
+  capabilities, faction, rank, superior, and tags; bindings enrich but never replace
+  provider-supplied metadata
 - `/worldecho status`, `recent`, `inspect item|entity`, and `reload`
 - English and Turkish message files with sanitized placeholders
 - unit tests for scoring, mapping, configuration, messages, providers, migrations,
-  persistence, and the shipped resources
+  persistence, content bindings, and the shipped resources
 
-Not implemented yet (Sprint 2 and later): item ownership transfer, captains, factions,
-rumors, story generation, and external content bridges.
+Not implemented yet (Sprint 0.3 and later): item ownership transfer, captains,
+factions, rumors, story generation, and external content bridges.
 
 ## Core product rule
 
@@ -72,9 +76,9 @@ All subcommands require the `worldecho.admin` permission (default: op).
 | --- | --- |
 | `/worldecho status` | Version, locale, queue counters, providers, database health, schema version, event count |
 | `/worldecho recent [count]` | Most recent memories, read off the server thread |
-| `/worldecho inspect item` | Provider, content ID, roles, capabilities, and the score breakdown of the held item |
-| `/worldecho inspect entity` | Provider, content ID, roles, and capabilities of the entity you are looking at |
-| `/worldecho reload` | Re-reads `config.yml` and the message files only |
+| `/worldecho inspect item` | Provider, content ID, roles, capabilities, binding metadata, and the score breakdown of the held item |
+| `/worldecho inspect entity` | Provider, content ID, roles, capabilities, and binding metadata of the entity you are looking at |
+| `/worldecho reload` | Re-reads `config.yml`, `bindings.yml`, and the message files |
 
 ## Documentation
 
