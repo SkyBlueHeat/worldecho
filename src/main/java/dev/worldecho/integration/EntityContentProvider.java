@@ -1,19 +1,11 @@
 package dev.worldecho.integration;
 
-import dev.worldecho.domain.content.IdentifiedContent;
 import org.bukkit.entity.Entity;
 
-import java.util.Optional;
-
-public interface EntityContentProvider {
-
-    String providerId();
-
-    int priority();
-
-    ProviderHealth health();
-
-    boolean supports(Entity entity);
-
-    Optional<IdentifiedContent> identify(Entity entity);
+/**
+ * Identifies a live entity, for example a MythicMob or a vanilla zombie.
+ *
+ * <p>Implementations are called on the server thread only.</p>
+ */
+public interface EntityContentProvider extends ContentProvider<Entity> {
 }

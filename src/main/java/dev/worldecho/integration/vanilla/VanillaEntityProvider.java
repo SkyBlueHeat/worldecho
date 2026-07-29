@@ -6,9 +6,12 @@ import dev.worldecho.domain.content.IdentifiedContent;
 import dev.worldecho.domain.content.SemanticRole;
 import dev.worldecho.integration.EntityContentProvider;
 import dev.worldecho.integration.ProviderHealth;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.entity.Animals;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
+import org.bukkit.entity.Mob;
 import org.bukkit.entity.Monster;
 import org.bukkit.entity.Player;
 import org.bukkit.entity.Villager;
@@ -17,11 +20,18 @@ import java.util.EnumSet;
 import java.util.Optional;
 import java.util.Set;
 
+/**
+ * Fallback provider that maps any Bukkit entity to semantic roles and capabilities.
+ *
+ * <p>It always answers last so a bridge such as MythicMobs can claim the entity first.</p>
+ */
 public final class VanillaEntityProvider implements EntityContentProvider {
+
+    public static final String PROVIDER_ID = "vanilla";
 
     @Override
     public String providerId() {
-        return "vanilla";
+        return PROVIDER_ID;
     }
 
     @Override
@@ -41,49 +51,69 @@ public final class VanillaEntityProvider implements EntityContentProvider {
 
     @Override
     public Optional<IdentifiedContent> identify(Entity entity) {
+        if (entity == null) {
+            return Optional.empty();
+        }
+
         Set<SemanticRole> roles = EnumSet.noneOf(SemanticRole.class);
         Set<Capability> capabilities = EnumSet.noneOf(Capability.class);
 
-        if (entity instanceof Player) {
-            roles.add(SemanticRole.PLAYER);
-            capabilities.addAll(Set.of(
-                    Capability.CAN_FIGHT,
-                    Capability.CAN_SPEAK,
-                    Capability.CAN_HOLD_ITEMS,
-                    Capability.CAN_OWN_ITEMS,
-                    Capability.CAN_CREATE_RIVALRY
-            ));
-        } else if (entity instanceof Villager) {
-            roles.add(SemanticRole.CIVILIAN);
-            capabilities.addAll(Set.of(
-                    Capability.CAN_SPEAK,
-                    Capability.CAN_TRADE
-            ));
-        } else if (entity instanceof Monster) {
-            roles.add(SemanticRole.MONSTER);
-            capabilities.addAll(Set.of(
-                    Capability.CAN_FIGHT,
-                    Capability.CAN_HOLD_ITEMS,
-                    Capability.CAN_CREATE_RIVALRY
-            ));
-        } else if (entity instanceof Animals) {
-            roles.add(SemanticRole.ANIMAL);
+        switch (entity) {
+            case Player ignored -> {
+                roles.add(SemanticRole.PLAYER);
+                capabilities.addAll(Set.of(
+                        Capability.CAN_FIGHT,
+                        Capability.CAN_SPEAK,
+                        Capability.CAN_HOLD_ITEMS,
+                        Capability.CAN_OWN_ITEMS,
+                        Capability.CAN_CREATE_RIVALRY
+                ));
+            }
+            case Villager ignored -> {
+                roles.add(SemanticRole.CIVILIAN);
+                capabilities.addAll(Set.of(
+                        Capability.CAN_SPEAK,
+                        Capability.CAN_TRADE,
+                        Capability.CAN_HOLD_ITEMS
+                ));
+            }
+            case Monster ignored -> {
+                roles.add(SemanticRole.MONSTER);
+                capabilities.addAll(Set.of(
+                        Capability.CAN_FIGHT,
+                        Capability.CAN_HOLD_ITEMS,
+                        Capability.CAN_CREATE_RIVALRY
+                ));
+            }
+            case Animals ignored -> roles.add(SemanticRole.ANIMAL);
+            default -> {
+                // Unclassified entities keep an empty role set; scenarios can still reject them.
+            }
         }
 
         if (entity instanceof LivingEntity) {
             capabilities.add(Capability.CAN_FIGHT);
         }
-
-        String contentId = entity.getType().getKey().asString();
-        String displayName = entity.customName() == null
-                ? entity.getType().translationKey()
-                : entity.customName().toString();
+        if (entity instanceof Mob) {
+            capabilities.add(Capability.CAN_HAVE_HISTORY);
+        }
 
         return Optional.of(new IdentifiedContent(
-                new ContentKey(providerId(), contentId),
-                displayName,
+                new ContentKey(PROVIDER_ID, entity.getType().getKey().asString()),
+                displayName(entity),
                 roles,
                 capabilities
         ));
+    }
+
+    private String displayName(Entity entity) {
+        Component customName = entity.customName();
+        if (customName != null) {
+            String plain = PlainTextComponentSerializer.plainText().serialize(customName);
+            if (!plain.isBlank()) {
+                return plain;
+            }
+        }
+        return entity.getType().translationKey();
     }
 }

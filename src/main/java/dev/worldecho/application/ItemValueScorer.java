@@ -1,74 +1,73 @@
 package dev.worldecho.application;
 
-import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.Damageable;
-import org.bukkit.inventory.meta.ItemMeta;
+import dev.worldecho.domain.item.ItemDescriptor;
+import dev.worldecho.domain.item.ItemScore;
+import dev.worldecho.domain.item.ItemScoreWeights;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
+/**
+ * Deterministic, configuration-driven value estimate for a captured item.
+ *
+ * <p>The scorer is intentionally pure: it never touches Bukkit, so the same descriptor
+ * always produces the same score and the same explanation.</p>
+ */
 public final class ItemValueScorer {
 
-    public int score(ItemStack itemStack) {
-        if (itemStack == null || itemStack.getType().isAir()) {
-            return 0;
-        }
+    private final ItemScoreWeights weights;
 
-        int score = materialScore(itemStack.getType().name());
-        ItemMeta meta = itemStack.getItemMeta();
-
-        if (meta != null) {
-            score += meta.getEnchants().entrySet().stream()
-                    .mapToInt(entry -> 4 + Math.max(0, entry.getValue()) * 2)
-                    .sum();
-
-            if (meta.hasDisplayName()) {
-                score += 8;
-            }
-
-            if (meta.isUnbreakable()) {
-                score += 12;
-            }
-
-            if (meta instanceof Damageable damageable && damageable.hasDamage()) {
-                score -= Math.min(10, damageable.getDamage() / 50);
-            }
-        }
-
-        score += Math.min(5, Math.max(0, itemStack.getAmount() - 1));
-        return Math.max(0, score);
+    public ItemValueScorer(ItemScoreWeights weights) {
+        this.weights = Objects.requireNonNull(weights, "weights");
     }
 
-    private int materialScore(String materialName) {
-        if (materialName.startsWith("NETHERITE_")) {
-            return 60;
-        }
-        if (materialName.startsWith("DIAMOND_")) {
-            return 45;
-        }
-        if (materialName.startsWith("GOLDEN_")) {
-            return 25;
-        }
-        if (materialName.startsWith("IRON_")) {
-            return 20;
-        }
-        if (materialName.startsWith("CHAINMAIL_")) {
-            return 15;
-        }
-        if (materialName.startsWith("STONE_")) {
-            return 8;
-        }
-        if (materialName.startsWith("WOODEN_") || materialName.startsWith("LEATHER_")) {
-            return 4;
+    public ItemScoreWeights weights() {
+        return weights;
+    }
+
+    public ItemScore score(ItemDescriptor descriptor) {
+        if (descriptor == null) {
+            return ItemScore.zero();
         }
 
-        return switch (materialName) {
-            case "ELYTRA" -> 55;
-            case "TRIDENT", "MACE" -> 50;
-            case "TOTEM_OF_UNDYING" -> 45;
-            case "ENCHANTED_GOLDEN_APPLE" -> 60;
-            case "NETHER_STAR" -> 55;
-            case "DRAGON_EGG" -> 100;
-            default -> 1;
-        };
+        List<ItemScore.ScoreFactor> factors = new ArrayList<>();
+        int total = add(factors, "material", weights.materialScore(descriptor.materialPath()));
+
+        int enchantmentPoints = 0;
+        for (Map.Entry<String, Integer> enchantment : descriptor.enchantments().entrySet()) {
+            enchantmentPoints += weights.enchantmentBase()
+                    + weights.enchantmentPerLevel() * enchantment.getValue();
+        }
+        total += add(factors, "enchantments", enchantmentPoints);
+
+        if (descriptor.hasCustomName()) {
+            total += add(factors, "custom-name", weights.customNameBonus());
+        }
+
+        if (descriptor.unbreakable()) {
+            total += add(factors, "unbreakable", weights.unbreakableBonus());
+        }
+
+        if (!descriptor.identifyingProviderId().isEmpty()
+                && !"vanilla".equals(descriptor.identifyingProviderId())) {
+            total += add(factors, "provider", weights.providerIdentifiedBonus());
+        }
+
+        int amountBonus = Math.min(weights.amountBonusCap(), descriptor.amount() - 1);
+        total += add(factors, "amount", amountBonus);
+
+        int wearPenalty = (int) Math.round(descriptor.wear() * weights.wearPenaltyCap());
+        total += add(factors, "wear", -wearPenalty);
+
+        return new ItemScore(Math.max(0, total), factors);
+    }
+
+    private int add(List<ItemScore.ScoreFactor> factors, String name, int points) {
+        if (points != 0) {
+            factors.add(new ItemScore.ScoreFactor(name, points));
+        }
+        return points;
     }
 }

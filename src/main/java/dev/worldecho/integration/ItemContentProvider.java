@@ -1,19 +1,12 @@
 package dev.worldecho.integration;
 
-import dev.worldecho.domain.content.IdentifiedContent;
 import org.bukkit.inventory.ItemStack;
 
-import java.util.Optional;
-
-public interface ItemContentProvider {
-
-    String providerId();
-
-    int priority();
-
-    ProviderHealth health();
-
-    boolean supports(ItemStack itemStack);
-
-    Optional<IdentifiedContent> identify(ItemStack itemStack);
+/**
+ * Identifies an item stack, for example an Oraxen or ItemsAdder item.
+ *
+ * <p>Implementations must not mutate the inspected stack and are called on the server
+ * thread only.</p>
+ */
+public interface ItemContentProvider extends ContentProvider<ItemStack> {
 }

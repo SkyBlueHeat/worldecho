@@ -44,6 +44,27 @@ This sprint does **not** transfer the item to a captain. It creates the reliable
 - `/worldecho recent` does not block the main thread.
 - `./gradlew clean test shadowJar` passes.
 
+## Implementation status
+
+| Deliverable | Status | Where |
+| --- | --- | --- |
+| Paper 26.2 / Java 25 build | done | `build.gradle.kts`, committed Gradle 9.6.1 wrapper |
+| Starts without optional integrations | done | `WorldEchoPlugin`, vanilla fallback providers |
+| Versioned SQLite migrations | done | `persistence/migration/SchemaMigrator` |
+| No database work on the server thread | done | `StoryWriteQueue` writer thread, reader executor, migrations run on the storage thread during enable |
+| Vanilla entity and item identification | done | `integration/vanilla/*` |
+| Death capture with the fields listed above | done | `PlayerDeathMemoryListener` → `DeathCapture` → `DeathMemoryFactory` |
+| `/worldecho status` | done | plugin version, locale, queue counters, providers, database health, schema version, event count |
+| `/worldecho recent` | done | async query, results delivered on the server thread, capped by config |
+| `/worldecho inspect` | done | held item with score breakdown, ray-traced entity |
+| `/worldecho reload` | done | configuration and messages only; storage keeps running |
+| Scenario capability tests | done | `ScenarioCompatibilityServiceTest` |
+| CI workflow | done | `.github/workflows/build.yml` |
+| README setup docs | done | `README.md`, `docs/CONFIGURATION.md`, `docs/TESTING.md` |
+
+Acceptance behavior that can only be confirmed on a live Paper server is listed in
+`docs/TESTING.md`; it has not been executed in this environment.
+
 ## Deferred
 
 - MythicMobs bridge
