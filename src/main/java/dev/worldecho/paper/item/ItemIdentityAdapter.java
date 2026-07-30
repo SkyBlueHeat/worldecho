@@ -43,6 +43,21 @@ public final class ItemIdentityAdapter {
         return key;
     }
 
+    /**
+     * Pure-Java decision logic that maps a stored PDC string value to an
+     * {@link IdentityResult}.  Extracted for testability without Bukkit.
+     */
+    static IdentityResult resolveStoredValue(String stored) {
+        if (stored == null) {
+            return new IdentityResult(IdentityStatus.MISSING, null);
+        }
+        Optional<TrackedItemId> parsed = TrackedItemId.tryParse(stored);
+        if (parsed.isEmpty()) {
+            return new IdentityResult(IdentityStatus.MALFORMED, null);
+        }
+        return new IdentityResult(IdentityStatus.EXISTING, parsed.get());
+    }
+
     public IdentityResult readIdentity(ItemStack item) {
         if (item == null || item.getType().isAir()) {
             return new IdentityResult(IdentityStatus.UNSUPPORTED_ITEM, null);
@@ -53,14 +68,7 @@ public final class ItemIdentityAdapter {
         }
         PersistentDataContainer pdc = meta.getPersistentDataContainer();
         String stored = pdc.get(key, PersistentDataType.STRING);
-        if (stored == null) {
-            return new IdentityResult(IdentityStatus.MISSING, null);
-        }
-        Optional<TrackedItemId> parsed = TrackedItemId.tryParse(stored);
-        if (parsed.isEmpty()) {
-            return new IdentityResult(IdentityStatus.MALFORMED, null);
-        }
-        return new IdentityResult(IdentityStatus.EXISTING, parsed.get());
+        return resolveStoredValue(stored);
     }
 
     public IdentityResult ensureIdentity(ItemStack item) {

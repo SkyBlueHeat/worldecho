@@ -15,6 +15,9 @@ import dev.worldecho.domain.scenario.EligibilityProfile;
 import dev.worldecho.domain.scenario.EligibilityResult;
 import dev.worldecho.domain.item.ItemDescriptor;
 import dev.worldecho.domain.item.ItemScore;
+import dev.worldecho.domain.item.OwnershipState;
+import dev.worldecho.domain.item.TrackedItemId;
+import dev.worldecho.domain.item.TrackedItemRecord;
 import dev.worldecho.domain.memory.StoryMemoryEvent;
 import dev.worldecho.integration.IntegrationRegistry;
 import dev.worldecho.integration.bukkit.BukkitItems;
@@ -86,6 +89,7 @@ public final class WorldEchoCommand implements CommandExecutor, TabCompleter {
     private final Supplier<List<String>> reloadAction;
     private final TrackedItemRepository trackedItemRepository;
     private final OwnershipLedgerRepository ledgerRepository;
+    private final ItemIdentityAdapter identityAdapter;
     private final ItemCommandHandler itemHandler;
 
     public WorldEchoCommand(
@@ -117,6 +121,7 @@ public final class WorldEchoCommand implements CommandExecutor, TabCompleter {
         this.reloadAction = Objects.requireNonNull(reloadAction, "reloadAction");
         this.trackedItemRepository = Objects.requireNonNull(trackedItemRepository, "trackedItemRepository");
         this.ledgerRepository = Objects.requireNonNull(ledgerRepository, "ledgerRepository");
+        this.identityAdapter = Objects.requireNonNull(identityAdapter, "identityAdapter");
         this.itemHandler = new ItemCommandHandler(
                 plugin,
                 settingsSupplier,
@@ -290,6 +295,43 @@ public final class WorldEchoCommand implements CommandExecutor, TabCompleter {
         line(player, "score.factors", score.explain());
         line(player, "minimum-score",
                 Integer.toString(settingsSupplier.get().minimumItemScore()));
+
+        ItemIdentityAdapter.IdentityResult identity = identityAdapter.readIdentity(item);
+        switch (identity.status()) {
+            case UNSUPPORTED_ITEM -> line(player, "worldecho.item-id", "untracked");
+            case MALFORMED -> messages().send(player, "item-malformed-id");
+            case MISSING -> line(player, "worldecho.item-id", "untracked");
+            case EXISTING -> {
+                TrackedItemId itemId = identity.itemId();
+                line(player, "worldecho.item-id", itemId.toString());
+                queryExecutor.execute(() -> {
+                    try {
+                        Optional<TrackedItemRecord> record = trackedItemRepository.findById(itemId);
+                        Optional<OwnershipState> state = ledgerRepository.findCurrentOwnership(itemId);
+                        long historyCount = ledgerRepository.countHistory(itemId);
+                        runOnServerThread(() -> {
+                            if (record.isEmpty()) {
+                                messages().send(player, "item-persistence-missing",
+                                        Map.of("item-id", itemId.toString()));
+                            }
+                            if (state.isPresent()) {
+                                OwnershipState s = state.get();
+                                line(player, "worldecho.current-owner",
+                                        s.optionalCurrentSubject()
+                                                .map(os -> os.describe()).orElse("-"));
+                                line(player, "worldecho.history-count",
+                                        Long.toString(historyCount));
+                            } else {
+                                line(player, "worldecho.current-owner", "-");
+                                line(player, "worldecho.history-count", "0");
+                            }
+                        });
+                    } catch (Exception exception) {
+                        plugin.getLogger().log(Level.WARNING, "Inspect item ownership query failed", exception);
+                    }
+                });
+            }
+        }
     }
 
     private void inspectEntity(Player player) {

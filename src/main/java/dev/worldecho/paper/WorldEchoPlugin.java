@@ -121,7 +121,8 @@ public final class WorldEchoPlugin extends JavaPlugin {
                         () -> settings,
                         integrations,
                         () -> itemValueScorer,
-                        memoryRecorder
+                        memoryRecorder,
+                        itemIdentityAdapter
                 ),
                 this
         );

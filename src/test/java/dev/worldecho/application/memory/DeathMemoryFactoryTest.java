@@ -7,6 +7,7 @@ import dev.worldecho.domain.content.IdentifiedContent;
 import dev.worldecho.domain.content.SemanticRole;
 import dev.worldecho.domain.item.ItemDescriptor;
 import dev.worldecho.domain.item.ItemScoreWeights;
+import dev.worldecho.domain.item.TrackedItemId;
 import dev.worldecho.domain.memory.Attributes;
 import dev.worldecho.domain.memory.MemoryEventType;
 import dev.worldecho.domain.memory.StoryMemoryEvent;
@@ -86,6 +87,24 @@ class DeathMemoryFactoryTest {
         assertEquals("world_nether", Attributes.decode(event.details()).get("world"));
     }
 
+    @Test
+    void trackedItemIdIncludedInSnapshotWhenPresent() {
+        TrackedItemId trackedId = TrackedItemId.random();
+        LootCandidate candidate = lootWithTrackedId(trackedId);
+        StoryMemoryEvent event = factory(false).create(capture(candidate));
+
+        Map<String, String> snapshot = Attributes.decode(event.itemSnapshot());
+        assertEquals(trackedId.toString(), snapshot.get("trackedItemId"));
+    }
+
+    @Test
+    void trackedItemIdEmptyWhenNotTracked() {
+        StoryMemoryEvent event = factory(false).create(capture(loot("Kral Kılıcı")));
+
+        Map<String, String> snapshot = Attributes.decode(event.itemSnapshot());
+        assertEquals("", snapshot.get("trackedItemId"));
+    }
+
     private DeathMemoryFactory factory(boolean redact) {
         return new DeathMemoryFactory(() -> EVENT_ID, redact);
     }
@@ -130,6 +149,31 @@ class DeathMemoryFactoryTest {
                 ),
                 descriptor,
                 scorer.score(descriptor)
+        );
+    }
+
+    private LootCandidate lootWithTrackedId(TrackedItemId trackedId) {
+        ItemDescriptor descriptor = new ItemDescriptor(
+                "minecraft:netherite_sword",
+                1,
+                Map.of("minecraft:sharpness", 5),
+                "Tracked Sword",
+                true,
+                0,
+                2031,
+                "oraxen"
+        );
+
+        return new LootCandidate(
+                new IdentifiedContent(
+                        new ContentKey("oraxen", "kings_blade"),
+                        "Tracked Sword",
+                        Set.of(SemanticRole.WEAPON),
+                        Set.of(Capability.CAN_BECOME_HEIRLOOM)
+                ),
+                descriptor,
+                scorer.score(descriptor),
+                trackedId
         );
     }
 }
