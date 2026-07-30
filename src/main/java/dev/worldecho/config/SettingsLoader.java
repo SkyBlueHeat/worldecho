@@ -44,7 +44,10 @@ public final class SettingsLoader {
                 integer(source, warnings, "persistence.write-queue-capacity", 2_000, 16, 100_000),
                 integer(source, warnings, "persistence.write-batch-size", 64, 1, 1_000),
                 integer(source, warnings, "commands.recent-default-count", 10, 1, 1_000),
-                integer(source, warnings, "commands.recent-maximum-count", 50, 1, 1_000)
+                integer(source, warnings, "commands.recent-maximum-count", 50, 1, 1_000),
+                bool(source, warnings, "items.identity.enabled", true),
+                integer(source, warnings, "items.history.default-limit", 10, 1, 1_000),
+                integer(source, warnings, "items.history.maximum-limit", 50, 1, 1_000)
         );
 
         if (settings.recentMaximumCount() < settings.recentDefaultCount()) {

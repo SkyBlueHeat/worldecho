@@ -27,6 +27,11 @@ Requires JDK 25. The wrapper pins Gradle 9.6.1.
 | `EligibilityCatalogTest` | All built-in profiles exist, unique IDs, entity/item separation, immutable collections, deterministic ordering, case-insensitive lookup |
 | `EligibilityEvaluatorTest` | Eligible/not-eligible, missing role/capability/faction/rank/superior, wrong binding type, no binding, unknown profile, extra values, blank metadata, immutability, deterministic ordering, enriched content, locale regression |
 | `EligibilityFormatterTest` | Profile list, eligible result, not-eligible result, summary, unknown profile, wrong binding type |
+| `TrackedItemIdTest` | Parse, tryParse, equality, lowercase normalization, blank/invalid rejection |
+| `OwnershipSubjectTest` | Factory methods, validation per type, describe, enum round-trips, stable ID normalization |
+| `OwnershipTransitionServiceTest` | Recording, idempotency replay, conflict on key mismatch, no-change, not-tracked, invalid subject, current ownership query |
+| `SqliteTrackedItemRepositoryTest` | Create, findById, exists, observe, count, idempotent create |
+| `SqliteOwnershipLedgerRepositoryTest` | Append, find current, find history descending, idempotency replay, conflict, count, previous subject persistence |
 
 `shadowJar` is finalized by `shadowJarSmokeTest`, which opens a real SQLite database using
 **only** the shaded JAR. Unit tests run against the un-shadowed classpath, so they cannot
@@ -76,7 +81,7 @@ verified on the other three boots.
 1. Install a Paper 26.2 server on Java 25.
 2. Copy `build/libs/worldecho-0.1.0-SNAPSHOT.jar` into `plugins/`.
 3. Start the server with **no** other plugins and confirm the log shows:
-   - `Storage ready at .../plugins/WorldEcho/worldecho.db (1 migration(s) applied)`
+   - `Storage ready at .../plugins/WorldEcho/worldecho.db (2 migration(s) applied)`
    - `Content providers: entity:vanilla=AVAILABLE, item:vanilla=AVAILABLE`
    - `WorldEcho memory kernel enabled`
 4. Run `/worldecho status` and confirm version, locale, queue counters, providers,
@@ -94,6 +99,17 @@ verified on the other three boots.
 11. Stop the server and confirm the log reports `Story write queue drained: N event(s) stored`.
 12. Restart and confirm `/worldecho recent` still lists the previous rows and that the log
     reports `0 migration(s) applied`.
+13. Hold a diamond sword and run `/worldecho item track`; confirm a WorldEcho ID is
+    assigned and a success message is shown.
+14. Run `/worldecho item inspect` while holding the same sword; confirm the item ID,
+    content key, material, current owner, and history count are displayed.
+15. Run `/worldecho item owner <item-id>` and confirm the current ownership state.
+16. Run `/worldecho item history <item-id>` and confirm at least one entry (the initial
+    TRACKED transition) is shown.
+17. Run `/worldecho item assign-owner <item-id> player <your-uuid>` and confirm the
+    ownership record is updated without moving the physical item.
+18. Run `/worldecho status` and confirm `tracked-items` and `ledger-entries` counts are
+    shown.
 
 ### Checking the thread rules
 

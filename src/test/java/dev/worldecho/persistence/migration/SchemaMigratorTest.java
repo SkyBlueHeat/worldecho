@@ -62,6 +62,36 @@ class SchemaMigratorTest {
     }
 
     @Test
+    void createsTrackedItemsAndLedgerTablesAndIndexes() throws Exception {
+        DatabaseManager database = new DatabaseManager(tempDir.resolve("v2.db"));
+        database.initialize();
+
+        List<String> tables = new ArrayList<>();
+        List<String> indexes = new ArrayList<>();
+        try (Connection connection = database.openConnection();
+             Statement statement = connection.createStatement();
+             ResultSet resultSet = statement.executeQuery(
+                     "SELECT type, name FROM sqlite_master WHERE type IN ('table','index')")) {
+            while (resultSet.next()) {
+                String type = resultSet.getString(1);
+                String name = resultSet.getString(2);
+                if ("table".equals(type)) {
+                    tables.add(name);
+                } else {
+                    indexes.add(name);
+                }
+            }
+        }
+
+        assertTrue(tables.contains("tracked_items"));
+        assertTrue(tables.contains("item_ownership_ledger"));
+        assertTrue(indexes.contains("idx_tracked_items_content_key"));
+        assertTrue(indexes.contains("idx_ledger_item_seq_desc"));
+        assertTrue(indexes.contains("idx_ledger_new_subject"));
+        assertTrue(indexes.contains("idx_ledger_occurred_at"));
+    }
+
+    @Test
     void recordsAppliedVersionsWithDescriptions() throws Exception {
         DatabaseManager database = new DatabaseManager(tempDir.resolve("versions.db"));
         database.initialize();

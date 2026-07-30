@@ -8,10 +8,22 @@ load: POSTWORLD
 commands:
   worldecho:
     description: WorldEcho administration command
-    usage: /worldecho <status|recent|inspect|reload>
+    usage: /worldecho <status|recent|inspect|reload|eligibility|item>
     aliases: [wecho]
     permission: worldecho.admin
 permissions:
   worldecho.admin:
     description: Allows administration and diagnostics for WorldEcho
+    default: op
+  worldecho.item.inspect:
+    description: Allows inspecting tracked-item identity and ownership
+    default: op
+  worldecho.item.track:
+    description: Allows tracking a new item with a WorldEcho identity
+    default: op
+  worldecho.item.history:
+    description: Allows viewing ownership history for a tracked item
+    default: op
+  worldecho.item.assign:
+    description: Allows administratively assigning ownership of a tracked item
     default: op

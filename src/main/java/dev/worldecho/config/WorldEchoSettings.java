@@ -20,7 +20,10 @@ public record WorldEchoSettings(
         int writeQueueCapacity,
         int writeBatchSize,
         int recentDefaultCount,
-        int recentMaximumCount
+        int recentMaximumCount,
+        boolean itemIdentityEnabled,
+        int itemHistoryDefaultLimit,
+        int itemHistoryMaximumLimit
 ) {
 
     public WorldEchoSettings {
@@ -41,6 +44,8 @@ public record WorldEchoSettings(
         writeBatchSize = Math.max(1, writeBatchSize);
         recentDefaultCount = Math.max(1, recentDefaultCount);
         recentMaximumCount = Math.max(recentDefaultCount, recentMaximumCount);
+        itemHistoryDefaultLimit = Math.max(1, itemHistoryDefaultLimit);
+        itemHistoryMaximumLimit = Math.max(itemHistoryDefaultLimit, itemHistoryMaximumLimit);
     }
 
     public static WorldEchoSettings defaults() {

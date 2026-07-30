@@ -21,7 +21,9 @@
 
 - `stolen_item_carrier`
 - `stolen_relic_command_chain`
-- stable item UUID and ownership history
+- ✅ stable item UUID and ownership history (Sprint 0.3A)
+- ✅ PDC-based persistent item identity (Sprint 0.3A)
+- ✅ append-only ownership ledger (Sprint 0.3A)
 - generated named rival
 - delayed rumor
 - recovery after restart

@@ -8,8 +8,9 @@ The server owner supplies content through plugins such as MythicMobs, Oraxen, It
 
 ## Status
 
-This repository implements **Sprint 0.2B — Scenario Eligibility Diagnostics**, extending
-the Sprint 0.2A content bindings with a pure-Java eligibility diagnostic system.
+This repository implements **Sprint 0.3A — Item Identity and Ownership Ledger**, adding
+persistent item identity via Paper's PDC and an append-only ownership ledger on top of
+the Sprint 0.2B eligibility diagnostics.
 
 The implemented vertical slice is:
 
@@ -32,14 +33,18 @@ Current foundation:
   provider-supplied metadata
 - scenario eligibility diagnostics: built-in profiles evaluate whether bound content is
   semantically ready for future story roles; structured diagnostics with stable codes
-- `/worldecho status`, `recent`, `inspect item|entity`, `reload`, and
-  `eligibility profiles|check|all`
+- persistent item identity via Paper Persistent Data Container (`worldecho:item_id`)
+- append-only ownership ledger with immutable entries, sequence numbers, idempotency
+  keys, and transition reasons
+- `/worldecho status`, `recent`, `inspect item|entity`, `reload`,
+  `eligibility profiles|check|all`, and `item track|inspect|owner|history|assign-owner`
 - English and Turkish message files with sanitized placeholders
 - unit tests for scoring, mapping, configuration, messages, providers, migrations,
-  persistence, content bindings, and the shipped resources
+  persistence, content bindings, eligibility, item identity, ownership ledger, and the
+  shipped resources
 
-Not implemented yet (Sprint 0.3 and later): item ownership transfer, captains,
-factions, rumors, story generation, and external content bridges.
+Not implemented yet (Sprint 0.3B and later): automatic ownership tracking on pickup/drop,
+captains, factions, rumors, story generation, and external content bridges.
 
 ## Core product rule
 
@@ -73,21 +78,29 @@ installed.
 
 ### Commands
 
-All subcommands require the `worldecho.admin` permission (default: op).
+All subcommands require the `worldecho.admin` permission (default: op). Item subcommands
+also require their respective permissions: `worldecho.item.inspect`, `worldecho.item.track`,
+`worldecho.item.history`, `worldecho.item.assign`.
 
 | Command | Description |
 | --- | --- |
-| `/worldecho status` | Version, locale, queue counters, providers, database health, schema version, event count |
+| `/worldecho status` | Version, locale, queue counters, providers, database health, schema version, event count, tracked-items, ledger-entries |
 | `/worldecho recent [count]` | Most recent memories, read off the server thread |
-| `/worldecho inspect item` | Provider, content ID, roles, capabilities, binding metadata, and the score breakdown of the held item |
+| `/worldecho inspect item` | Provider, content ID, roles, capabilities, binding metadata, score breakdown, and ownership data of the held item |
 | `/worldecho inspect entity` | Provider, content ID, roles, capabilities, and binding metadata of the entity you are looking at |
 | `/worldecho reload` | Re-reads `config.yml`, `bindings.yml`, and the message files |
+| `/worldecho item track` | Assign a WorldEcho ID to the held item and create a persistence record |
+| `/worldecho item inspect` | Show tracked status, item ID, content key, material, current owner, and history count |
+| `/worldecho item owner <item-id>` | Show current ownership state for a tracked item |
+| `/worldecho item history <item-id> [count]` | Show ownership history entries in descending sequence order |
+| `/worldecho item assign-owner <item-id> player\|entity\|system <id>` | Administratively assign ownership without moving the physical item |
 
 ## Documentation
 
 - `AGENTS.md` — engineering rules for Devin and other coding agents
 - `docs/PRODUCT_SPEC.md` — complete product direction
 - `docs/ARCHITECTURE.md` — target architecture
+- `docs/SPRINT_0.3A.md` — Sprint 0.3A item identity and ownership ledger details
 - `docs/SPRINT_1.md` — first implementation slice
 - `docs/ROADMAP.md` — staged delivery plan
 - `docs/CONFIGURATION.md` — every configuration key and the scoring formula

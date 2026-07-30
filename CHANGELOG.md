@@ -105,3 +105,33 @@
 - Tests: `EligibilityCatalogTest` (9 cases), `EligibilityEvaluatorTest` (22 cases),
   `EligibilityFormatterTest` (8 cases), extended `BundledResourcesTest`
 - Turkish locale regression tests for profile ID and capability normalization
+
+### Added (0.3.0-SNAPSHOT — Sprint 0.3A)
+
+- Persistent item identity via Paper Persistent Data Container (`worldecho:item_id` key)
+- Append-only ownership ledger with immutable entries, sequence numbers, and transition
+  reasons
+- Ownership subjects: PLAYER, ENTITY, CONTAINER, WORLD_DROP, SYSTEM, UNKNOWN with stable
+  identifiers and validation
+- Idempotency keys to prevent duplicate ledger entries on retries
+- `OwnershipTransitionService`: pure-Java service with Clock injection, validation,
+  idempotency, and no-change short-circuit
+- SQLite schema migration v2: `tracked_items` and `item_ownership_ledger` tables with
+  indexes and foreign key constraints
+- `TrackedItemRepository` and `OwnershipLedgerRepository` interfaces with SQLite
+  implementations
+- `ItemIdentityAdapter`: PDC read/write/assign for ItemStack identity
+- `/worldecho item track|inspect|owner|history|assign-owner` commands with permissions
+  and tab completion
+- `/worldecho status` now shows tracked-items and ledger-entries counts
+- Reconciliation: if a PDC identity exists but the persistence record is missing,
+  `/worldecho item track` creates the record without generating a new ID
+- Configuration: `items.identity.enabled`, `items.history.default-limit`,
+  `items.history.maximum-limit`
+- Permissions: `worldecho.item.inspect`, `worldecho.item.track`,
+  `worldecho.item.history`, `worldecho.item.assign`
+- English and Turkish messages for all item/ownership commands
+- Tests: `TrackedItemIdTest` (9), `OwnershipSubjectTest` (16),
+  `OwnershipTransitionServiceTest` (11), `SqliteTrackedItemRepositoryTest` (6),
+  `SqliteOwnershipLedgerRepositoryTest` (14), extended `SchemaMigratorTest`,
+  extended `BundledResourcesTest`

@@ -60,7 +60,18 @@ class BundledResourcesTest {
                 "eligibility-usage", "eligibility-profiles-header", "eligibility-profile-line",
                 "eligibility-check-usage", "eligibility-all-usage",
                 "eligibility-invalid-target", "eligibility-invalid-key",
-                "eligibility-result-line", "eligibility-all-header", "eligibility-all-limit")) {
+                "eligibility-result-line", "eligibility-all-header", "eligibility-all-limit",
+                "item-usage", "item-track-success", "item-already-tracked", "item-malformed-id",
+                "item-missing", "item-not-tracked", "item-persistence-missing",
+                "item-reconciliation-success", "item-unsupported", "item-track-failed",
+                "item-id-line", "item-tracked-status", "item-content-key", "item-material",
+                "item-current-owner", "item-no-owner", "item-ownership-sequence",
+                "item-history-count", "item-identity-warning",
+                "item-history-header", "item-history-empty", "item-history-entry",
+                "item-owner-header", "item-assign-success", "item-assign-invalid-uuid",
+                "item-assign-invalid-subject", "item-assign-not-tracked", "item-assign-failed",
+                "item-console-requires-id", "item-player-held-required",
+                "item-database-failed", "item-invalid-id", "item-history-limit-clamped")) {
             assertTrue(english.isString(key), () -> "missing message key: " + key);
         }
     }
