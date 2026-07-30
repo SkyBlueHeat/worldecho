@@ -79,3 +79,29 @@
 - At most 64 drops per death are inspected, so an unusually large inventory may not have
   every item considered.
 - Changing `persistence.*` requires a restart; `/worldecho reload` does not rebuild storage.
+
+### Added (0.2.1-SNAPSHOT — Sprint 0.2B)
+
+- Scenario eligibility diagnostics: evaluates bound or enriched content against named
+  requirement profiles and produces structured, deterministic diagnostics
+- Built-in profiles: `item-carrier`, `promotion-candidate`, `combat-story-actor`
+  (entity), `transferable-story-item` (item)
+- `EligibilityCatalog`: immutable profile catalog with case-insensitive lookup
+  (`Locale.ROOT`), deterministic ordering, and duplicate ID rejection
+- `EligibilityEvaluator`: pure-Java evaluator supporting both `ContentBinding` and
+  `EnrichedContent`; provider-supplied roles and capabilities count when evaluating
+  enriched content
+- `EligibilityResult`: immutable result with matched/missing roles, capabilities, metadata,
+  tags, and structured diagnostics with stable codes
+- `EligibilityFormatter`: pure-Java formatter for console-friendly command output
+- Diagnostic codes: `ELIGIBLE`, `NO_BINDING`, `PROFILE_NOT_FOUND`, `WRONG_BINDING_TYPE`,
+  `MISSING_ROLE`, `MISSING_CAPABILITY`, `MISSING_FACTION`, `MISSING_RANK`,
+  `MISSING_SUPERIOR`, `MISSING_TAG`
+- `/worldecho eligibility profiles|check|all` console-compatible commands with tab
+  completion for profile IDs, targets, and bound content keys
+- `/worldecho status` now shows eligibility profile counts
+- `/worldecho inspect` now shows concise eligibility summary per profile
+- English and Turkish messages for all eligibility commands
+- Tests: `EligibilityCatalogTest` (9 cases), `EligibilityEvaluatorTest` (22 cases),
+  `EligibilityFormatterTest` (8 cases), extended `BundledResourcesTest`
+- Turkish locale regression tests for profile ID and capability normalization

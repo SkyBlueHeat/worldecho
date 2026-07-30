@@ -8,8 +8,8 @@ The server owner supplies content through plugins such as MythicMobs, Oraxen, It
 
 ## Status
 
-This repository implements **Sprint 0.2A — Content Bindings**, extending the Sprint 1
-memory kernel with a provider-neutral binding layer.
+This repository implements **Sprint 0.2B — Scenario Eligibility Diagnostics**, extending
+the Sprint 0.2A content bindings with a pure-Java eligibility diagnostic system.
 
 The implemented vertical slice is:
 
@@ -30,7 +30,10 @@ Current foundation:
 - content bindings: `bindings.yml` maps provider content IDs to semantic roles,
   capabilities, faction, rank, superior, and tags; bindings enrich but never replace
   provider-supplied metadata
-- `/worldecho status`, `recent`, `inspect item|entity`, and `reload`
+- scenario eligibility diagnostics: built-in profiles evaluate whether bound content is
+  semantically ready for future story roles; structured diagnostics with stable codes
+- `/worldecho status`, `recent`, `inspect item|entity`, `reload`, and
+  `eligibility profiles|check|all`
 - English and Turkish message files with sanitized placeholders
 - unit tests for scoring, mapping, configuration, messages, providers, migrations,
   persistence, content bindings, and the shipped resources

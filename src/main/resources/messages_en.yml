@@ -5,7 +5,7 @@ prefix: "<gray>[<aqua>WorldEcho</aqua>]</gray> "
 
 no-permission: "<red>You do not have permission to use this command.</red>"
 players-only: "<red>This subcommand can only be used by a player.</red>"
-usage: "<white>Usage: /worldecho status | recent [count] | inspect item | inspect entity | reload</white>"
+usage: "<white>Usage: /worldecho status | recent [count] | inspect item | inspect entity | reload | eligibility profiles | eligibility check <entity|item> <key> <profile> | eligibility all <entity|item> <key></white>"
 unknown-subcommand: "<red>Unknown subcommand. Use /worldecho for help.</red>"
 
 status-header: "<aqua>Memory kernel status</aqua>"
@@ -27,3 +27,14 @@ inspect-no-entity: "<yellow>Look at an entity within 12 blocks to inspect it.</y
 reload-success: "<green>Configuration, messages, and bindings reloaded.</green>"
 reload-warning: "<yellow>{warning}</yellow>"
 reload-failed: "<red>Reload failed. The previous configuration is still active.</red>"
+
+eligibility-usage: "<white>Usage: /worldecho eligibility profiles | check <entity|item> <key> <profile> | all <entity|item> <key></white>"
+eligibility-profiles-header: "<aqua>Eligibility profiles</aqua>"
+eligibility-profile-line: "<white>{line}</white>"
+eligibility-check-usage: "<white>Usage: /worldecho eligibility check <entity|item> <content-key> <profile></white>"
+eligibility-all-usage: "<white>Usage: /worldecho eligibility all <entity|item> <content-key></white>"
+eligibility-invalid-target: "<red>Target must be 'entity' or 'item'.</red>"
+eligibility-invalid-key: "<red>Invalid content key: {key}</red>"
+eligibility-result-line: "<white>{line}</white>"
+eligibility-all-header: "<aqua>Eligibility for {key}</aqua>"
+eligibility-all-limit: "<yellow>Output limit reached ({limit} profiles).</yellow>"
