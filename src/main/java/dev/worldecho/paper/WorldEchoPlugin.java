@@ -16,12 +16,17 @@ import dev.worldecho.integration.vanilla.VanillaEntityProvider;
 import dev.worldecho.integration.vanilla.VanillaItemProvider;
 import dev.worldecho.paper.command.WorldEchoCommand;
 import dev.worldecho.paper.config.BukkitConfigurationSource;
+import dev.worldecho.paper.item.ItemIdentityAdapter;
 import dev.worldecho.paper.listener.PlayerDeathMemoryListener;
 import dev.worldecho.paper.message.PaperMessageService;
 import dev.worldecho.persistence.DatabaseManager;
+import dev.worldecho.persistence.OwnershipLedgerRepository;
 import dev.worldecho.persistence.SqliteStoryEventRepository;
+import dev.worldecho.persistence.SqliteTrackedItemRepository;
+import dev.worldecho.persistence.SqliteOwnershipLedgerRepository;
 import dev.worldecho.persistence.StoryEventRepository;
 import dev.worldecho.persistence.StoryWriteQueue;
+import dev.worldecho.persistence.TrackedItemRepository;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -61,6 +66,9 @@ public final class WorldEchoPlugin extends JavaPlugin {
     private StoryEventRepository repository;
     private StoryWriteQueue writeQueue;
     private ExecutorService queryExecutor;
+    private ItemIdentityAdapter itemIdentityAdapter;
+    private TrackedItemRepository trackedItemRepository;
+    private OwnershipLedgerRepository ledgerRepository;
 
     @Override
     public void onEnable() {
@@ -84,6 +92,9 @@ public final class WorldEchoPlugin extends JavaPlugin {
         }
 
         repository = new SqliteStoryEventRepository(databaseManager);
+        trackedItemRepository = new SqliteTrackedItemRepository(databaseManager);
+        ledgerRepository = new SqliteOwnershipLedgerRepository(databaseManager);
+        itemIdentityAdapter = new ItemIdentityAdapter(this);
         writeQueue = new StoryWriteQueue(
                 repository,
                 throwable -> getLogger().log(Level.SEVERE, "Story write failed", throwable),
@@ -292,7 +303,10 @@ public final class WorldEchoPlugin extends JavaPlugin {
                 repository,
                 writeQueue,
                 queryExecutor,
-                this::reloadSettings
+                this::reloadSettings,
+                itemIdentityAdapter,
+                trackedItemRepository,
+                ledgerRepository
         );
         command.setExecutor(executor);
         command.setTabCompleter(executor);

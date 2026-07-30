@@ -102,6 +102,14 @@ database connection, the writer thread, and the provider registry keep running, 
 reload can never lose queued memories. Changing `persistence.*` therefore requires a
 server restart.
 
+## items
+
+| Key | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `identity.enabled` | boolean | `true` | Whether the item identity system is active. When `false`, `/worldecho item track` refuses to assign new IDs. |
+| `history.default-limit` | 1–1000 | `10` | Default number of ownership history entries shown by `/worldecho item history` when no count is given. |
+| `history.maximum-limit` | 1–1000 | `50` | Maximum number of ownership history entries that can be requested in a single command. |
+
 ## Content bindings (`bindings.yml`)
 
 Bindings map provider-specific content IDs to WorldEcho semantic metadata. A binding

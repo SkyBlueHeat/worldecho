@@ -65,3 +65,13 @@ persistence:
 commands:
   recent-default-count: 10
   recent-maximum-count: 50
+
+items:
+  identity:
+    # Enable persistent tracked-item identity via PDC.
+    enabled: true
+  history:
+    # Default number of ownership history entries shown by /worldecho item history.
+    default-limit: 10
+    # Maximum number of ownership history entries that can be requested.
+    maximum-limit: 50

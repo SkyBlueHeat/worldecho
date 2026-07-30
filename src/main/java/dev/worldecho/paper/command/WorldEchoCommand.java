@@ -46,6 +46,10 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.logging.Level;
 
+import dev.worldecho.paper.item.ItemIdentityAdapter;
+import dev.worldecho.persistence.OwnershipLedgerRepository;
+import dev.worldecho.persistence.TrackedItemRepository;
+
 /**
  * Administration command. Database access always runs on the WorldEcho query executor and
  * results are sent back on the server thread.
@@ -56,7 +60,7 @@ public final class WorldEchoCommand implements CommandExecutor, TabCompleter {
 
     private static final double ENTITY_TRACE_DISTANCE = 12.0d;
     private static final List<String> SUBCOMMANDS =
-            List.of("status", "recent", "inspect", "reload", "eligibility");
+            List.of("status", "recent", "inspect", "reload", "eligibility", "item");
     private static final List<String> INSPECT_TARGETS = List.of("item", "entity");
     private static final List<String> ELIGIBILITY_SUBCOMMANDS =
             List.of("profiles", "check", "all");
@@ -80,6 +84,9 @@ public final class WorldEchoCommand implements CommandExecutor, TabCompleter {
     private final StoryWriteQueue writeQueue;
     private final Executor queryExecutor;
     private final Supplier<List<String>> reloadAction;
+    private final TrackedItemRepository trackedItemRepository;
+    private final OwnershipLedgerRepository ledgerRepository;
+    private final ItemCommandHandler itemHandler;
 
     public WorldEchoCommand(
             Plugin plugin,
@@ -92,7 +99,10 @@ public final class WorldEchoCommand implements CommandExecutor, TabCompleter {
             StoryEventRepository repository,
             StoryWriteQueue writeQueue,
             Executor queryExecutor,
-            Supplier<List<String>> reloadAction
+            Supplier<List<String>> reloadAction,
+            ItemIdentityAdapter identityAdapter,
+            TrackedItemRepository trackedItemRepository,
+            OwnershipLedgerRepository ledgerRepository
     ) {
         this.plugin = Objects.requireNonNull(plugin, "plugin");
         this.settingsSupplier = Objects.requireNonNull(settingsSupplier, "settingsSupplier");
@@ -105,6 +115,20 @@ public final class WorldEchoCommand implements CommandExecutor, TabCompleter {
         this.writeQueue = Objects.requireNonNull(writeQueue, "writeQueue");
         this.queryExecutor = Objects.requireNonNull(queryExecutor, "queryExecutor");
         this.reloadAction = Objects.requireNonNull(reloadAction, "reloadAction");
+        this.trackedItemRepository = Objects.requireNonNull(trackedItemRepository, "trackedItemRepository");
+        this.ledgerRepository = Objects.requireNonNull(ledgerRepository, "ledgerRepository");
+        this.itemHandler = new ItemCommandHandler(
+                plugin,
+                settingsSupplier,
+                messageSupplier,
+                scorerSupplier,
+                enricherSupplier,
+                integrations,
+                identityAdapter,
+                trackedItemRepository,
+                ledgerRepository,
+                queryExecutor
+        );
     }
 
     @Override
@@ -130,6 +154,7 @@ public final class WorldEchoCommand implements CommandExecutor, TabCompleter {
             case "inspect" -> inspect(sender, args);
             case "reload" -> reload(sender);
             case "eligibility" -> eligibility(sender, args);
+            case "item" -> itemHandler.handle(sender, args);
             default -> messages().send(sender, "unknown-subcommand");
         }
 
@@ -164,12 +189,16 @@ public final class WorldEchoCommand implements CommandExecutor, TabCompleter {
                 () -> new DatabaseStatus(
                         databaseManager.healthy(),
                         databaseManager.schemaVersion(),
-                        repository.count()
+                        repository.count(),
+                        trackedItemRepository.count(),
+                        ledgerRepository.count()
                 ),
                 status -> {
                     line(sender, "database", status.healthy() ? "ok" : "unavailable");
                     line(sender, "schema.version", Integer.toString(status.schemaVersion()));
                     line(sender, "events", Long.toString(status.events()));
+                    line(sender, "tracked-items", Long.toString(status.trackedItems()));
+                    line(sender, "ledger-entries", Long.toString(status.ledgerEntries()));
                 },
                 "status-failed"
         );
@@ -573,6 +602,10 @@ public final class WorldEchoCommand implements CommandExecutor, TabCompleter {
             return eligibilityTabComplete(args);
         }
 
+        if (args[0].equalsIgnoreCase("item")) {
+            return itemHandler.tabComplete(args);
+        }
+
         return List.of();
     }
 
@@ -617,7 +650,7 @@ public final class WorldEchoCommand implements CommandExecutor, TabCompleter {
         return List.of();
     }
 
-    private static List<String> filter(List<String> candidates, String prefix) {
+    static List<String> filter(List<String> candidates, String prefix) {
         String normalized = prefix.toLowerCase(Locale.ROOT);
         List<String> matches = new ArrayList<>();
         for (String candidate : candidates) {
@@ -633,6 +666,6 @@ public final class WorldEchoCommand implements CommandExecutor, TabCompleter {
         T get() throws Exception;
     }
 
-    private record DatabaseStatus(boolean healthy, int schemaVersion, long events) {
+    private record DatabaseStatus(boolean healthy, int schemaVersion, long events, long trackedItems, long ledgerEntries) {
     }
 }

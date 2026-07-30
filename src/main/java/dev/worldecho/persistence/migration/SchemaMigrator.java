@@ -48,6 +48,62 @@ public final class SchemaMigrator {
                     CREATE INDEX IF NOT EXISTS idx_story_events_event_type
                     ON story_events(event_type)
                     """
+            )),
+            new Migration(2, "tracked item identity and ownership ledger", List.of(
+                    """
+                    CREATE TABLE IF NOT EXISTS tracked_items (
+                        item_id TEXT PRIMARY KEY,
+                        created_at INTEGER NOT NULL,
+                        first_seen_at INTEGER NOT NULL,
+                        last_seen_at INTEGER NOT NULL,
+                        content_key TEXT NOT NULL,
+                        provider_id TEXT NOT NULL,
+                        initial_material TEXT NOT NULL,
+                        initial_custom_name TEXT NOT NULL DEFAULT '',
+                        initial_value_score INTEGER,
+                        tracking_reason TEXT NOT NULL DEFAULT '',
+                        created_by_subject TEXT NOT NULL DEFAULT ''
+                    )
+                    """,
+                    """
+                    CREATE INDEX IF NOT EXISTS idx_tracked_items_content_key
+                    ON tracked_items(content_key)
+                    """,
+                    """
+                    CREATE TABLE IF NOT EXISTS item_ownership_ledger (
+                        entry_id TEXT PRIMARY KEY,
+                        item_id TEXT NOT NULL,
+                        sequence_number INTEGER NOT NULL,
+                        previous_subject_type TEXT,
+                        previous_subject_id TEXT,
+                        previous_subject_display TEXT,
+                        new_subject_type TEXT NOT NULL,
+                        new_subject_id TEXT NOT NULL,
+                        new_subject_display TEXT NOT NULL DEFAULT '',
+                        transition_reason TEXT NOT NULL,
+                        occurred_at INTEGER NOT NULL,
+                        recorded_at INTEGER NOT NULL,
+                        source TEXT NOT NULL DEFAULT '',
+                        story_event_id TEXT NOT NULL DEFAULT '',
+                        idempotency_key TEXT NOT NULL DEFAULT '',
+                        notes TEXT NOT NULL DEFAULT '',
+                        UNIQUE(item_id, sequence_number),
+                        UNIQUE(item_id, idempotency_key),
+                        FOREIGN KEY(item_id) REFERENCES tracked_items(item_id)
+                    )
+                    """,
+                    """
+                    CREATE INDEX IF NOT EXISTS idx_ledger_item_seq_desc
+                    ON item_ownership_ledger(item_id, sequence_number DESC)
+                    """,
+                    """
+                    CREATE INDEX IF NOT EXISTS idx_ledger_new_subject
+                    ON item_ownership_ledger(new_subject_type, new_subject_id)
+                    """,
+                    """
+                    CREATE INDEX IF NOT EXISTS idx_ledger_occurred_at
+                    ON item_ownership_ledger(occurred_at DESC)
+                    """
             ))
     );
 
