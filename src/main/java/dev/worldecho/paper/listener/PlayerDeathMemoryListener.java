@@ -9,8 +9,10 @@ import dev.worldecho.config.WorldEchoSettings;
 import dev.worldecho.domain.content.IdentifiedContent;
 import dev.worldecho.domain.item.ItemDescriptor;
 import dev.worldecho.domain.item.ItemScore;
+import dev.worldecho.domain.item.TrackedItemId;
 import dev.worldecho.integration.IntegrationRegistry;
 import dev.worldecho.integration.bukkit.BukkitItems;
+import dev.worldecho.paper.item.ItemIdentityAdapter;
 import org.bukkit.Location;
 import org.bukkit.damage.DamageSource;
 import org.bukkit.entity.Entity;
@@ -47,17 +49,20 @@ public final class PlayerDeathMemoryListener implements Listener {
     private final IntegrationRegistry integrations;
     private final Supplier<ItemValueScorer> scorerSupplier;
     private final MemoryRecorder memoryRecorder;
+    private final ItemIdentityAdapter identityAdapter;
 
     public PlayerDeathMemoryListener(
             Supplier<WorldEchoSettings> settingsSupplier,
             IntegrationRegistry integrations,
             Supplier<ItemValueScorer> scorerSupplier,
-            MemoryRecorder memoryRecorder
+            MemoryRecorder memoryRecorder,
+            ItemIdentityAdapter identityAdapter
     ) {
         this.settingsSupplier = Objects.requireNonNull(settingsSupplier, "settingsSupplier");
         this.integrations = Objects.requireNonNull(integrations, "integrations");
         this.scorerSupplier = Objects.requireNonNull(scorerSupplier, "scorerSupplier");
         this.memoryRecorder = Objects.requireNonNull(memoryRecorder, "memoryRecorder");
+        this.identityAdapter = Objects.requireNonNull(identityAdapter, "identityAdapter");
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
@@ -150,7 +155,12 @@ public final class PlayerDeathMemoryListener implements Listener {
             }
 
             if (best == null || score.value() > best.score().value()) {
-                best = new LootCandidate(content.get(), descriptor, score);
+                TrackedItemId trackedId = null;
+                ItemIdentityAdapter.IdentityResult identity = identityAdapter.readIdentity(drop);
+                if (identity.status() == ItemIdentityAdapter.IdentityStatus.EXISTING) {
+                    trackedId = identity.itemId();
+                }
+                best = new LootCandidate(content.get(), descriptor, score, trackedId);
             }
         }
 

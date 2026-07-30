@@ -66,6 +66,27 @@ every ownership transition with an immutable, explainable history.
 - **Status command** — now includes `tracked-items` and `ledger-entries` counts.
 - **Tab completion** — supports `item` subcommands and `assign-owner` subject types.
 
+### Existing inspect integration
+
+`/worldecho inspect item` now shows:
+- `worldecho.item-id` — the tracked-item ID or `untracked`
+- `worldecho.current-owner` — current ownership subject description
+- `worldecho.history-count` — number of ledger entries
+- A `persistence-missing` warning when PDC identity exists but the database record is absent
+
+Read-only inspection never assigns an ID.
+
+### Eligibility integration
+
+`/worldecho item inspect` displays `transferable-story-item: eligible/not eligible` when
+the held item has a content binding. Tracking and eligibility remain separate concepts.
+
+### Death-memory integration
+
+The death-memory system reads an existing tracked item ID from the selected loot drop
+when present. The ID is stored in the death snapshot as `trackedItemId`. No new IDs are
+assigned during death capture. Existing death-event semantics are unchanged.
+
 ### Configuration
 
 New keys in `config.yml`:
@@ -91,7 +112,7 @@ items:
 All new message keys added to both `messages_en.yml` and `messages_tr.yml` with
 MiniMessage formatting and sanitized placeholders.
 
-### Tests (197 total, all passing)
+### Tests (all passing)
 
 - `TrackedItemIdTest` — parse, tryParse, equality, lowercase normalization
 - `OwnershipSubjectTest` — factory methods, validation, describe, enum round-trips
@@ -102,10 +123,19 @@ MiniMessage formatting and sanitized placeholders.
   replay, conflict, count, previous subject persistence
 - `SchemaMigratorTest` — v2 tables and indexes verified
 - `BundledResourcesTest` — all item message keys present in both locales
+- `ItemIdentityAdapterTest` — pure-Java decision logic: untracked, valid, malformed,
+  uppercase, blank, partial, stable reads
+- `ReconciliationTest` — PDC exists but DB missing, repeated track reconciles,
+  preserves original ID, no duplicate ledger entries, snapshot conflict diagnostics
+- `ItemOwnershipIntegrationTest` — track→create→sequence 1, restart→owner present,
+  append→count increases, descending history, story events survive, different items
+  both use sequence 1
+- `DeathMemoryFactoryTest` — tracked item ID included in snapshot when present,
+  empty when not tracked
 
 ## Validation steps
 
-1. `./gradlew clean test shadowJar` — all 197 tests pass, jar builds successfully
+1. `./gradlew clean test shadowJar` — all tests pass, jar builds successfully
 2. SQLite smoke test passes
 3. Config defaults match shipped config.yml
 4. Message key parity between English and Turkish locales

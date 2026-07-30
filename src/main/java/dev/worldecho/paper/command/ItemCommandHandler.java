@@ -17,6 +17,9 @@ import dev.worldecho.domain.item.OwnershipTransitionReason;
 import dev.worldecho.domain.item.OwnershipTransitionService;
 import dev.worldecho.domain.item.TrackedItemId;
 import dev.worldecho.domain.item.TrackedItemRecord;
+import dev.worldecho.domain.scenario.EligibilityCatalog;
+import dev.worldecho.domain.scenario.EligibilityEvaluator;
+import dev.worldecho.domain.scenario.EligibilityResult;
 import dev.worldecho.integration.IntegrationRegistry;
 import dev.worldecho.integration.bukkit.BukkitItems;
 import dev.worldecho.paper.item.ItemIdentityAdapter;
@@ -71,6 +74,8 @@ public final class ItemCommandHandler {
     private final OwnershipLedgerRepository ledgerRepository;
     private final OwnershipTransitionService transitionService;
     private final Executor queryExecutor;
+    private final EligibilityEvaluator eligibilityEvaluator =
+            new EligibilityEvaluator(EligibilityCatalog.builtin());
 
     public ItemCommandHandler(
             Plugin plugin,
@@ -306,6 +311,18 @@ public final class ItemCommandHandler {
                 messages().send(player, "inspect-header");
                 line(player, "tracked", "yes");
                 line(player, "item-id", itemId.toString());
+
+                Optional<IdentifiedContent> identified = integrations.identifyItem(item);
+                if (identified.isPresent()) {
+                    BindingEnricher enricher = enricherSupplier.get();
+                    dev.worldecho.domain.binding.EnrichedContent enriched =
+                            enricher.enrichItem(identified.get());
+                    EligibilityResult eligibility = eligibilityEvaluator.evaluate(
+                            enriched, "transferable-story-item");
+                    line(player, "transferable-story-item",
+                            eligibility.eligible() ? "eligible" : "not eligible");
+                }
+
                 queryExecutor.execute(() -> {
                     try {
                         Optional<TrackedItemRecord> record = trackedItemRepository.findById(itemId);

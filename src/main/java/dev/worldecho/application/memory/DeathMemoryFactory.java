@@ -2,6 +2,7 @@ package dev.worldecho.application.memory;
 
 import dev.worldecho.domain.content.ContentKey;
 import dev.worldecho.domain.item.ItemDescriptor;
+import dev.worldecho.domain.item.TrackedItemId;
 import dev.worldecho.domain.memory.Attributes;
 import dev.worldecho.domain.memory.MemoryEventType;
 import dev.worldecho.domain.memory.StoryMemoryEvent;
@@ -64,6 +65,10 @@ public final class DeathMemoryFactory {
                 ? ""
                 : descriptor.customName();
 
+        String trackedId = loot.optionalTrackedItemId()
+                .map(TrackedItemId::toString)
+                .orElse("");
+
         return Attributes.create()
                 .put("content", loot.content().key().toString())
                 .put("material", descriptor.materialKey())
@@ -75,6 +80,7 @@ public final class DeathMemoryFactory {
                 .put("damage", descriptor.damage())
                 .put("score", loot.score().value())
                 .put("scoreFactors", loot.score().explain())
+                .put("trackedItemId", trackedId)
                 .encode();
     }
 }
