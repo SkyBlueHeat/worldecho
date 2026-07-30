@@ -16,16 +16,27 @@ import dev.worldecho.integration.vanilla.VanillaEntityProvider;
 import dev.worldecho.integration.vanilla.VanillaItemProvider;
 import dev.worldecho.paper.command.WorldEchoCommand;
 import dev.worldecho.paper.config.BukkitConfigurationSource;
+import dev.worldecho.paper.inventory.PlayerInventoryReconciler;
+import dev.worldecho.paper.inventory.PlayerInventoryReconciliationScheduler;
 import dev.worldecho.paper.item.ItemIdentityAdapter;
 import dev.worldecho.paper.listener.PlayerDeathMemoryListener;
+import dev.worldecho.paper.listener.PlayerInventoryObservationListener;
 import dev.worldecho.paper.message.PaperMessageService;
+import dev.worldecho.domain.item.AutomaticItemIdentityService;
+import dev.worldecho.domain.item.LotOwnershipTransitionService;
+import dev.worldecho.domain.item.OwnershipTransitionService;
+import dev.worldecho.domain.item.ReconciliationMetrics;
 import dev.worldecho.persistence.DatabaseManager;
+import dev.worldecho.persistence.LotOwnershipLedgerRepository;
 import dev.worldecho.persistence.OwnershipLedgerRepository;
+import dev.worldecho.persistence.SqliteLotOwnershipLedgerRepository;
 import dev.worldecho.persistence.SqliteStoryEventRepository;
+import dev.worldecho.persistence.SqliteTrackedItemLotRepository;
 import dev.worldecho.persistence.SqliteTrackedItemRepository;
 import dev.worldecho.persistence.SqliteOwnershipLedgerRepository;
 import dev.worldecho.persistence.StoryEventRepository;
 import dev.worldecho.persistence.StoryWriteQueue;
+import dev.worldecho.persistence.TrackedItemLotRepository;
 import dev.worldecho.persistence.TrackedItemRepository;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.configuration.ConfigurationSection;
@@ -69,6 +80,14 @@ public final class WorldEchoPlugin extends JavaPlugin {
     private ItemIdentityAdapter itemIdentityAdapter;
     private TrackedItemRepository trackedItemRepository;
     private OwnershipLedgerRepository ledgerRepository;
+    private TrackedItemLotRepository lotRepository;
+    private LotOwnershipLedgerRepository lotLedgerRepository;
+    private OwnershipTransitionService ownershipTransitionService;
+    private LotOwnershipTransitionService lotOwnershipTransitionService;
+    private AutomaticItemIdentityService automaticIdentityService;
+    private ReconciliationMetrics reconciliationMetrics;
+    private PlayerInventoryReconciler inventoryReconciler;
+    private PlayerInventoryReconciliationScheduler reconciliationScheduler;
 
     @Override
     public void onEnable() {
@@ -127,12 +146,66 @@ public final class WorldEchoPlugin extends JavaPlugin {
                 this
         );
 
+        lotRepository = new SqliteTrackedItemLotRepository(databaseManager);
+        lotLedgerRepository = new SqliteLotOwnershipLedgerRepository(databaseManager);
+        ownershipTransitionService = new OwnershipTransitionService(
+                trackedItemRepository, ledgerRepository, java.time.Clock.systemUTC());
+        lotOwnershipTransitionService = new LotOwnershipTransitionService(
+                lotRepository, lotLedgerRepository, java.time.Clock.systemUTC());
+        automaticIdentityService = new AutomaticItemIdentityService(
+                trackedItemRepository, lotRepository,
+                ownershipTransitionService, lotOwnershipTransitionService,
+                java.time.Clock.systemUTC());
+        reconciliationMetrics = new ReconciliationMetrics();
+
+        String serverSessionId = java.util.UUID.randomUUID().toString();
+        inventoryReconciler = new PlayerInventoryReconciler(
+                () -> settings,
+                integrations,
+                () -> bindingEnricher,
+                itemIdentityAdapter,
+                automaticIdentityService,
+                reconciliationMetrics,
+                serverSessionId
+        );
+        reconciliationScheduler = new PlayerInventoryReconciliationScheduler(
+                this,
+                () -> settings,
+                inventoryReconciler,
+                queryExecutor,
+                reconciliationMetrics
+        );
+
+        getServer().getPluginManager().registerEvents(
+                new PlayerInventoryObservationListener(
+                        () -> settings,
+                        reconciliationScheduler
+                ),
+                this
+        );
+
+        if (settings.automaticTrackingEnabled()) {
+            reconciliationScheduler.scheduleForAllOnline("plugin-enable");
+        }
+
         registerCommand();
         getLogger().info("WorldEcho memory kernel enabled");
     }
 
     @Override
     public void onDisable() {
+        if (reconciliationScheduler != null) {
+            reconciliationScheduler.shutdown();
+        }
+        if (reconciliationMetrics != null) {
+            getLogger().info("Automatic tracking metrics: reconciliations="
+                    + reconciliationMetrics.inventoryReconciliations()
+                    + " identities-assigned=" + reconciliationMetrics.automaticIdentitiesAssigned()
+                    + " lots-assigned=" + reconciliationMetrics.automaticLotsAssigned()
+                    + " ownership-transitions=" + reconciliationMetrics.ownershipTransitionsRecorded()
+                    + " warnings=" + reconciliationMetrics.identityWarnings()
+                    + " duplicates=" + reconciliationMetrics.duplicateIdentityObservations());
+        }
         if (writeQueue != null) {
             boolean drained = writeQueue.shutdown(settings.shutdownTimeout());
             StoryWriteQueue.QueueStatus status = writeQueue.status();
@@ -307,7 +380,9 @@ public final class WorldEchoPlugin extends JavaPlugin {
                 this::reloadSettings,
                 itemIdentityAdapter,
                 trackedItemRepository,
-                ledgerRepository
+                ledgerRepository,
+                reconciliationScheduler,
+                reconciliationMetrics
         );
         command.setExecutor(executor);
         command.setTabCompleter(executor);

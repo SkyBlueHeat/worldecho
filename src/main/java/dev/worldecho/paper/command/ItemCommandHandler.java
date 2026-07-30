@@ -5,8 +5,12 @@ import dev.worldecho.application.ItemValueScorer;
 import dev.worldecho.config.WorldEchoSettings;
 import dev.worldecho.domain.content.ContentKey;
 import dev.worldecho.domain.content.IdentifiedContent;
+import dev.worldecho.domain.item.IdentityClassificationResult;
 import dev.worldecho.domain.item.ItemDescriptor;
+import dev.worldecho.domain.item.ItemIdentityPolicy;
 import dev.worldecho.domain.item.ItemScore;
+import dev.worldecho.domain.item.LotCompatibilityFingerprint;
+import dev.worldecho.domain.item.ObservedItemDescriptor;
 import dev.worldecho.domain.item.OwnershipLedgerEntry;
 import dev.worldecho.domain.item.OwnershipResult;
 import dev.worldecho.domain.item.OwnershipResultStatus;
@@ -15,6 +19,7 @@ import dev.worldecho.domain.item.OwnershipSubject;
 import dev.worldecho.domain.item.OwnershipSubjectType;
 import dev.worldecho.domain.item.OwnershipTransitionReason;
 import dev.worldecho.domain.item.OwnershipTransitionService;
+import dev.worldecho.domain.item.ReconciliationMetrics;
 import dev.worldecho.domain.item.TrackedItemId;
 import dev.worldecho.domain.item.TrackedItemRecord;
 import dev.worldecho.domain.scenario.EligibilityCatalog;
@@ -22,6 +27,7 @@ import dev.worldecho.domain.scenario.EligibilityEvaluator;
 import dev.worldecho.domain.scenario.EligibilityResult;
 import dev.worldecho.integration.IntegrationRegistry;
 import dev.worldecho.integration.bukkit.BukkitItems;
+import dev.worldecho.paper.inventory.PlayerInventoryReconciliationScheduler;
 import dev.worldecho.paper.item.ItemIdentityAdapter;
 import dev.worldecho.paper.message.PaperMessageService;
 import dev.worldecho.persistence.OwnershipLedgerRepository;
@@ -54,9 +60,11 @@ public final class ItemCommandHandler {
     public static final String PERM_TRACK = "worldecho.item.track";
     public static final String PERM_HISTORY = "worldecho.item.history";
     public static final String PERM_ASSIGN = "worldecho.item.assign";
+    public static final String PERM_RECONCILE = "worldecho.item.reconcile";
+    public static final String PERM_POLICY = "worldecho.item.policy";
 
     static final List<String> ITEM_SUBCOMMANDS =
-            List.of("track", "inspect", "owner", "history", "assign-owner");
+            List.of("track", "inspect", "owner", "history", "assign-owner", "reconcile", "policy");
     static final List<String> ASSIGN_SUBJECT_TYPES =
             List.of("player", "entity", "system");
 
@@ -76,6 +84,8 @@ public final class ItemCommandHandler {
     private final Executor queryExecutor;
     private final EligibilityEvaluator eligibilityEvaluator =
             new EligibilityEvaluator(EligibilityCatalog.builtin());
+    private final PlayerInventoryReconciliationScheduler reconciliationScheduler;
+    private final ReconciliationMetrics reconciliationMetrics;
 
     public ItemCommandHandler(
             Plugin plugin,
@@ -87,7 +97,9 @@ public final class ItemCommandHandler {
             ItemIdentityAdapter identityAdapter,
             TrackedItemRepository trackedItemRepository,
             OwnershipLedgerRepository ledgerRepository,
-            Executor queryExecutor
+            Executor queryExecutor,
+            PlayerInventoryReconciliationScheduler reconciliationScheduler,
+            ReconciliationMetrics reconciliationMetrics
     ) {
         this.plugin = Objects.requireNonNull(plugin, "plugin");
         this.settingsSupplier = Objects.requireNonNull(settingsSupplier, "settingsSupplier");
@@ -101,6 +113,8 @@ public final class ItemCommandHandler {
         this.queryExecutor = Objects.requireNonNull(queryExecutor, "queryExecutor");
         this.transitionService = new OwnershipTransitionService(
                 trackedItemRepository, ledgerRepository, Clock.systemUTC());
+        this.reconciliationScheduler = Objects.requireNonNull(reconciliationScheduler, "reconciliationScheduler");
+        this.reconciliationMetrics = Objects.requireNonNull(reconciliationMetrics, "reconciliationMetrics");
     }
 
     public void handle(CommandSender sender, String[] args) {
@@ -115,6 +129,8 @@ public final class ItemCommandHandler {
             case "owner" -> owner(sender, args);
             case "history" -> history(sender, args);
             case "assign-owner" -> assignOwner(sender, args);
+            case "reconcile" -> reconcile(sender, args);
+            case "policy" -> policy(sender);
             default -> messages().send(sender, "item-usage");
         }
     }
@@ -607,6 +623,91 @@ public final class ItemCommandHandler {
             return;
         }
         plugin.getServer().getScheduler().runTask(plugin, runnable);
+    }
+
+    private void reconcile(CommandSender sender, String[] args) {
+        if (!sender.hasPermission(PERM_RECONCILE)) {
+            messages().send(sender, "no-permission");
+            return;
+        }
+
+        Player targetPlayer;
+        if (args.length >= 3) {
+            String playerName = args[2];
+            targetPlayer = plugin.getServer().getPlayer(playerName);
+            if (targetPlayer == null) {
+                messages().send(sender, "item-player-not-found",
+                        Map.of("player", sanitize(playerName)));
+                return;
+            }
+        } else if (sender instanceof Player player) {
+            targetPlayer = player;
+        } else {
+            messages().send(sender, "item-reconcile-usage");
+            return;
+        }
+
+        messages().send(sender, "item-reconcile-started",
+                Map.of("player", targetPlayer.getName()));
+        reconciliationScheduler.scheduleReconciliation(targetPlayer.getUniqueId(), "manual-reconcile");
+        runOnServerThread(() -> messages().send(sender, "item-reconcile-completed",
+                Map.of("player", targetPlayer.getName())));
+    }
+
+    private void policy(CommandSender sender) {
+        if (!sender.hasPermission(PERM_POLICY)) {
+            messages().send(sender, "no-permission");
+            return;
+        }
+        if (!(sender instanceof Player player)) {
+            messages().send(sender, "item-player-held-required");
+            return;
+        }
+
+        ItemStack item = player.getInventory().getItemInMainHand();
+        if (item.getType().isAir()) {
+            messages().send(player, "item-missing");
+            return;
+        }
+
+        ItemIdentityAdapter.IdentityResult identity = identityAdapter.readIdentity(item);
+        line(player, "worldecho.identity-status", identity.status().name().toLowerCase(Locale.ROOT));
+        if (identity.status() == ItemIdentityAdapter.IdentityStatus.EXISTING) {
+            line(player, "worldecho.item-id", identity.itemId().toString());
+        }
+
+        ItemDescriptor descriptor = BukkitItems.describe(item, "minecraft");
+        ObservedItemDescriptor observed = ObservedItemDescriptor.builder()
+                .providerId("minecraft")
+                .material(descriptor.materialKey())
+                .maxStackSize(item.getMaxStackSize())
+                .amount(item.getAmount())
+                .damageable(descriptor.maxDurability() > 0)
+                .damageValue(descriptor.damage())
+                .customNamePresent(descriptor.hasCustomName())
+                .enchantmentsPresent(!descriptor.enchantments().isEmpty())
+                .existingWorldEchoIdentity(identity.status() == ItemIdentityAdapter.IdentityStatus.EXISTING)
+                .build();
+
+        IdentityClassificationResult classification = ItemIdentityPolicy.classify(observed);
+        line(player, "worldecho.identity-mode", classification.mode().name().toLowerCase(Locale.ROOT));
+        line(player, "worldecho.classification-confidence",
+                String.format(Locale.ROOT, "%.2f", classification.confidence()));
+        for (String reason : classification.reasons()) {
+            line(player, "worldecho.classification-reason", reason);
+        }
+
+        if (classification.isLot() && descriptor.enchantments().isEmpty()) {
+            LotCompatibilityFingerprint fingerprint = LotCompatibilityFingerprint.builder()
+                    .providerId("minecraft")
+                    .material(descriptor.materialKey())
+                    .damageValue(descriptor.damage())
+                    .build();
+            line(player, "worldecho.lot-fingerprint", fingerprint.serialize());
+        }
+
+        line(player, "worldecho.automatic-tracking",
+                settingsSupplier.get().automaticTrackingEnabled() ? "enabled" : "disabled");
     }
 
     private void line(CommandSender sender, String key, String value) {

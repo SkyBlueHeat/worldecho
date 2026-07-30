@@ -24,6 +24,12 @@
 - ✅ stable item UUID and ownership history (Sprint 0.3A)
 - ✅ PDC-based persistent item identity (Sprint 0.3A)
 - ✅ append-only ownership ledger (Sprint 0.3A)
+- ✅ automatic UNIQUE/LOT identity classification (Sprint 0.3B)
+- ✅ automatic PDC assignment for player inventories (Sprint 0.3B)
+- ✅ lot fingerprinting and persistence (Sprint 0.3B)
+- ✅ coalescing inventory reconciliation scheduler (Sprint 0.3B)
+- ✅ event-driven reconciliation (join, respawn, click, drag, pickup, death) (Sprint 0.3B)
+- ✅ duplicate observation detection (Sprint 0.3B)
 - generated named rival
 - delayed rumor
 - recovery after restart
