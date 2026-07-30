@@ -56,7 +56,11 @@ class BundledResourcesTest {
                 "recent-loading", "recent-header", "recent-empty", "recent-line",
                 "recent-failed", "recent-invalid-count",
                 "inspect-usage", "inspect-header", "inspect-no-item", "inspect-no-entity",
-                "reload-success", "reload-warning", "reload-failed")) {
+                "reload-success", "reload-warning", "reload-failed",
+                "eligibility-usage", "eligibility-profiles-header", "eligibility-profile-line",
+                "eligibility-check-usage", "eligibility-all-usage",
+                "eligibility-invalid-target", "eligibility-invalid-key",
+                "eligibility-result-line", "eligibility-all-header", "eligibility-all-limit")) {
             assertTrue(english.isString(key), () -> "missing message key: " + key);
         }
     }
@@ -85,6 +89,27 @@ class BundledResourcesTest {
         assertFalse(result.registry().findItemBinding(
                 new dev.worldecho.domain.content.ContentKey("oraxen", "flame_sword")).isEmpty(),
                 "expected oraxen:flame_sword item binding");
+    }
+
+    @Test
+    void bundledBindingsProduceDeterministicEligibilityResults() {
+        BindingLoadResult result = BindingLoader.load(
+                new BukkitConfigurationSource(read("bindings.yml")));
+        dev.worldecho.domain.scenario.EligibilityEvaluator evaluator =
+                new dev.worldecho.domain.scenario.EligibilityEvaluator(
+                        dev.worldecho.domain.scenario.EligibilityCatalog.builtin());
+
+        dev.worldecho.domain.content.ContentKey zombie =
+                new dev.worldecho.domain.content.ContentKey("minecraft", "zombie");
+        dev.worldecho.domain.binding.ContentBinding zombieBinding =
+                result.registry().findEntityBinding(zombie).orElseThrow();
+        dev.worldecho.domain.scenario.EligibilityResult r1 =
+                evaluator.evaluate(zombieBinding, "combat-story-actor");
+        dev.worldecho.domain.scenario.EligibilityResult r2 =
+                evaluator.evaluate(zombieBinding, "combat-story-actor");
+
+        assertEquals(r1, r2, "eligibility results should be deterministic");
+        assertTrue(r1.eligible(), "minecraft:zombie should be eligible for combat-story-actor");
     }
 
     private static YamlConfiguration read(String resource) {

@@ -24,6 +24,9 @@ Requires JDK 25. The wrapper pins Gradle 9.6.1.
 | `BindingRegistryTest` | Entity/item namespace separation, lookup, counts, immutability, diagnostics counting |
 | `BindingEnricherTest` | Role/capability merging, base content not mutated, entity/item isolation, metadata preservation |
 | `BindingReloadCoordinatorTest` | Startup vs reload fatal handling, previous registry kept on fatal, idempotent reload, atomic replacement |
+| `EligibilityCatalogTest` | All built-in profiles exist, unique IDs, entity/item separation, immutable collections, deterministic ordering, case-insensitive lookup |
+| `EligibilityEvaluatorTest` | Eligible/not-eligible, missing role/capability/faction/rank/superior, wrong binding type, no binding, unknown profile, extra values, blank metadata, immutability, deterministic ordering, enriched content, locale regression |
+| `EligibilityFormatterTest` | Profile list, eligible result, not-eligible result, summary, unknown profile, wrong binding type |
 
 `shadowJar` is finalized by `shadowJarSmokeTest`, which opens a real SQLite database using
 **only** the shaded JAR. Unit tests run against the un-shadowed classpath, so they cannot

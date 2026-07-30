@@ -15,7 +15,7 @@
 - ✅ semantic roles and capabilities
 - ✅ factions, ranks, and superior mappings
 - ✅ content scan and validation commands
-- ⬜ scenario eligibility diagnostics (Sprint 0.3)
+- ✅ scenario eligibility diagnostics (Sprint 0.2B)
 
 ## 0.3 — First Story
 

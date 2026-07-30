@@ -5,7 +5,7 @@ prefix: "<gray>[<aqua>WorldEcho</aqua>]</gray> "
 
 no-permission: "<red>Bu komutu kullanma yetkiniz yok.</red>"
 players-only: "<red>Bu alt komut yalnızca oyuncular tarafından kullanılabilir.</red>"
-usage: "<white>Kullanım: /worldecho status | recent [adet] | inspect item | inspect entity | reload</white>"
+usage: "<white>Kullanım: /worldecho status | recent [adet] | inspect item | inspect entity | reload | eligibility profiles | eligibility check <entity|item> <anahtar> <profil> | eligibility all <entity|item> <anahtar></white>"
 unknown-subcommand: "<red>Bilinmeyen alt komut. Yardım için /worldecho yazın.</red>"
 
 status-header: "<aqua>Hafıza çekirdeği durumu</aqua>"
@@ -27,3 +27,14 @@ inspect-no-entity: "<yellow>İncelemek için 12 blok içindeki bir varlığa bak
 reload-success: "<green>Yapılandırma, mesajlar ve bağlamalar yeniden yüklendi.</green>"
 reload-warning: "<yellow>{warning}</yellow>"
 reload-failed: "<red>Yeniden yükleme başarısız. Önceki yapılandırma etkin kalmaya devam ediyor.</red>"
+
+eligibility-usage: "<white>Kullanım: /worldecho eligibility profiles | check <entity|item> <anahtar> <profil> | all <entity|item> <anahtar></white>"
+eligibility-profiles-header: "<aqua>Uygunluk profilleri</aqua>"
+eligibility-profile-line: "<white>{line}</white>"
+eligibility-check-usage: "<white>Kullanım: /worldecho eligibility check <entity|item> <içerik-anahtarı> <profil></white>"
+eligibility-all-usage: "<white>Kullanım: /worldecho eligibility all <entity|item> <içerik-anahtarı></white>"
+eligibility-invalid-target: "<red>Hedef 'entity' veya 'item' olmalıdır.</red>"
+eligibility-invalid-key: "<red>Geçersiz içerik anahtarı: {key}</red>"
+eligibility-result-line: "<white>{line}</white>"
+eligibility-all-header: "<aqua>{key} için uygunluk</aqua>"
+eligibility-all-limit: "<yellow>Çıktı sınırına ulaşıldı ({limit} profil).</yellow>"

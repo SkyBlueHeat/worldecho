@@ -3,8 +3,16 @@ package dev.worldecho.paper.command;
 import dev.worldecho.application.BindingEnricher;
 import dev.worldecho.application.ItemValueScorer;
 import dev.worldecho.config.WorldEchoSettings;
+import dev.worldecho.domain.binding.BindingType;
+import dev.worldecho.domain.binding.ContentBinding;
 import dev.worldecho.domain.binding.EnrichedContent;
+import dev.worldecho.domain.content.ContentKey;
 import dev.worldecho.domain.content.IdentifiedContent;
+import dev.worldecho.domain.scenario.EligibilityCatalog;
+import dev.worldecho.domain.scenario.EligibilityEvaluator;
+import dev.worldecho.domain.scenario.EligibilityFormatter;
+import dev.worldecho.domain.scenario.EligibilityProfile;
+import dev.worldecho.domain.scenario.EligibilityResult;
 import dev.worldecho.domain.item.ItemDescriptor;
 import dev.worldecho.domain.item.ItemScore;
 import dev.worldecho.domain.memory.StoryMemoryEvent;
@@ -48,8 +56,16 @@ public final class WorldEchoCommand implements CommandExecutor, TabCompleter {
 
     private static final double ENTITY_TRACE_DISTANCE = 12.0d;
     private static final List<String> SUBCOMMANDS =
-            List.of("status", "recent", "inspect", "reload");
+            List.of("status", "recent", "inspect", "reload", "eligibility");
     private static final List<String> INSPECT_TARGETS = List.of("item", "entity");
+    private static final List<String> ELIGIBILITY_SUBCOMMANDS =
+            List.of("profiles", "check", "all");
+    private static final List<String> ELIGIBILITY_TARGETS = List.of("entity", "item");
+    private static final int ELIGIBILITY_ALL_LIMIT = 20;
+
+    private final EligibilityCatalog eligibilityCatalog = EligibilityCatalog.builtin();
+    private final EligibilityEvaluator eligibilityEvaluator =
+            new EligibilityEvaluator(eligibilityCatalog);
     private static final DateTimeFormatter TIME_FORMATTER =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.systemDefault());
 
@@ -113,6 +129,7 @@ public final class WorldEchoCommand implements CommandExecutor, TabCompleter {
             case "recent" -> recent(sender, args);
             case "inspect" -> inspect(sender, args);
             case "reload" -> reload(sender);
+            case "eligibility" -> eligibility(sender, args);
             default -> messages().send(sender, "unknown-subcommand");
         }
 
@@ -138,6 +155,9 @@ public final class WorldEchoCommand implements CommandExecutor, TabCompleter {
         line(sender, "bindings.warnings", Long.toString(enricher.registry().warningCount()));
         line(sender, "bindings.errors", Long.toString(enricher.registry().errorCount()));
         line(sender, "bindings.schema-version", Integer.toString(enricher.registry().schemaVersion()));
+        line(sender, "eligibility.profiles", Integer.toString(eligibilityCatalog.size()));
+        line(sender, "eligibility.entity-profiles", Integer.toString(eligibilityCatalog.entityProfileCount()));
+        line(sender, "eligibility.item-profiles", Integer.toString(eligibilityCatalog.itemProfileCount()));
 
         query(
                 sender,
@@ -282,6 +302,174 @@ public final class WorldEchoCommand implements CommandExecutor, TabCompleter {
             line(sender, "superior", binding.optionalSuperior().map(Object::toString).orElse("-"));
             line(sender, "tags", binding.tags().isEmpty() ? "-" : String.join(", ", binding.tags()));
         });
+        showEligibilitySummary(sender, content);
+    }
+
+    private void showEligibilitySummary(CommandSender sender, EnrichedContent content) {
+        BindingType type = content.optionalBinding()
+                .map(ContentBinding::type).orElse(null);
+        if (type == null) {
+            return;
+        }
+        List<EligibilityProfile> profiles = eligibilityCatalog.profilesFor(type);
+        if (profiles.isEmpty()) {
+            return;
+        }
+        List<String> summaries = new ArrayList<>();
+        for (EligibilityProfile profile : profiles) {
+            EligibilityResult result = eligibilityEvaluator.evaluate(content, profile.id());
+            summaries.add(EligibilityFormatter.formatSummary(result));
+        }
+        line(sender, "eligibility", String.join("; ", summaries));
+    }
+
+    private void eligibility(CommandSender sender, String[] args) {
+        if (args.length < 2) {
+            messages().send(sender, "eligibility-usage");
+            return;
+        }
+
+        switch (args[1].toLowerCase(Locale.ROOT)) {
+            case "profiles" -> eligibilityProfiles(sender);
+            case "check" -> eligibilityCheck(sender, args);
+            case "all" -> eligibilityAll(sender, args);
+            default -> messages().send(sender, "eligibility-usage");
+        }
+    }
+
+    private void eligibilityProfiles(CommandSender sender) {
+        messages().send(sender, "eligibility-profiles-header");
+        for (String line : EligibilityFormatter.formatProfiles(eligibilityCatalog)) {
+            messages().send(sender, "eligibility-profile-line", Map.of("line", line));
+        }
+    }
+
+    private void eligibilityCheck(CommandSender sender, String[] args) {
+        if (args.length < 5) {
+            messages().send(sender, "eligibility-check-usage");
+            return;
+        }
+
+        String targetType = args[2].toLowerCase(Locale.ROOT);
+        String contentKeyStr = args[3];
+        String profileId = args[4];
+
+        BindingType type = parseBindingType(targetType);
+        if (type == null) {
+            messages().send(sender, "eligibility-invalid-target");
+            return;
+        }
+
+        ContentKey contentKey;
+        try {
+            contentKey = ContentKey.parse(contentKeyStr);
+        } catch (IllegalArgumentException e) {
+            messages().send(sender, "eligibility-invalid-key",
+                    Map.of("key", sanitize(contentKeyStr)));
+            return;
+        }
+
+        BindingEnricher enricher = enricherSupplier.get();
+        ContentBinding binding = type == BindingType.ENTITY
+                ? enricher.registry().findEntityBinding(contentKey).orElse(null)
+                : enricher.registry().findItemBinding(contentKey).orElse(null);
+
+        EligibilityResult result;
+        if (binding == null) {
+            result = new dev.worldecho.domain.scenario.EligibilityResult(
+                    profileId, contentKey, null,
+                    dev.worldecho.domain.scenario.EligibilityStatus.NOT_ELIGIBLE,
+                    java.util.Set.of(), java.util.Set.of(),
+                    java.util.Set.of(), java.util.Set.of(),
+                    java.util.List.of(), java.util.Set.of(),
+                    java.util.List.of(new dev.worldecho.domain.scenario.EligibilityDiagnostic(
+                            dev.worldecho.domain.scenario.EligibilityDiagnosticCode.NO_BINDING,
+                            profileId, contentKey, "binding",
+                            "No binding found for " + contentKey
+                    ))
+            );
+        } else {
+            result = eligibilityEvaluator.evaluate(binding, profileId);
+        }
+
+        for (String line : EligibilityFormatter.formatResult(result)) {
+            messages().send(sender, "eligibility-result-line", Map.of("line", line));
+        }
+    }
+
+    private void eligibilityAll(CommandSender sender, String[] args) {
+        if (args.length < 4) {
+            messages().send(sender, "eligibility-all-usage");
+            return;
+        }
+
+        String targetType = args[2].toLowerCase(Locale.ROOT);
+        String contentKeyStr = args[3];
+
+        BindingType type = parseBindingType(targetType);
+        if (type == null) {
+            messages().send(sender, "eligibility-invalid-target");
+            return;
+        }
+
+        ContentKey contentKey;
+        try {
+            contentKey = ContentKey.parse(contentKeyStr);
+        } catch (IllegalArgumentException e) {
+            messages().send(sender, "eligibility-invalid-key",
+                    Map.of("key", sanitize(contentKeyStr)));
+            return;
+        }
+
+        BindingEnricher enricher = enricherSupplier.get();
+        ContentBinding binding = type == BindingType.ENTITY
+                ? enricher.registry().findEntityBinding(contentKey).orElse(null)
+                : enricher.registry().findItemBinding(contentKey).orElse(null);
+
+        messages().send(sender, "eligibility-all-header",
+                Map.of("key", contentKey.toString()));
+
+        List<EligibilityProfile> profiles = eligibilityCatalog.profilesFor(type);
+        int count = 0;
+        for (EligibilityProfile profile : profiles) {
+            if (count >= ELIGIBILITY_ALL_LIMIT) {
+                messages().send(sender, "eligibility-all-limit",
+                        Map.of("limit", Integer.toString(ELIGIBILITY_ALL_LIMIT)));
+                break;
+            }
+            EligibilityResult result;
+            if (binding == null) {
+                result = new dev.worldecho.domain.scenario.EligibilityResult(
+                        profile.id(), contentKey, null,
+                        dev.worldecho.domain.scenario.EligibilityStatus.NOT_ELIGIBLE,
+                        java.util.Set.of(), java.util.Set.of(),
+                        java.util.Set.of(), java.util.Set.of(),
+                        java.util.List.of(), java.util.Set.of(),
+                        java.util.List.of(new dev.worldecho.domain.scenario.EligibilityDiagnostic(
+                                dev.worldecho.domain.scenario.EligibilityDiagnosticCode.NO_BINDING,
+                                profile.id(), contentKey, "binding",
+                                "No binding found for " + contentKey
+                        ))
+                );
+            } else {
+                result = eligibilityEvaluator.evaluate(binding, profile.id());
+            }
+            messages().send(sender, "eligibility-result-line",
+                    Map.of("line", EligibilityFormatter.formatSummary(result)));
+            count++;
+        }
+    }
+
+    private static BindingType parseBindingType(String value) {
+        return switch (value) {
+            case "entity" -> BindingType.ENTITY;
+            case "item" -> BindingType.ITEM;
+            default -> null;
+        };
+    }
+
+    private static String sanitize(String input) {
+        return input.replaceAll("[&<>\\u00a7\\n\\r]", "");
     }
 
     private void reload(CommandSender sender) {
@@ -379,6 +567,51 @@ public final class WorldEchoCommand implements CommandExecutor, TabCompleter {
                     ),
                     args[1]
             );
+        }
+
+        if (args[0].equalsIgnoreCase("eligibility")) {
+            return eligibilityTabComplete(args);
+        }
+
+        return List.of();
+    }
+
+    private List<String> eligibilityTabComplete(String[] args) {
+        if (args.length == 2) {
+            return filter(ELIGIBILITY_SUBCOMMANDS, args[1]);
+        }
+
+        if (args.length == 3 && (args[1].equalsIgnoreCase("check")
+                || args[1].equalsIgnoreCase("all"))) {
+            return filter(ELIGIBILITY_TARGETS, args[2]);
+        }
+
+        if (args.length == 4 && (args[1].equalsIgnoreCase("check")
+                || args[1].equalsIgnoreCase("all"))) {
+            BindingEnricher enricher = enricherSupplier.get();
+            String typeArg = args[2].toLowerCase(Locale.ROOT);
+            List<String> keys = new ArrayList<>();
+            if (typeArg.equals("entity")) {
+                enricher.registry().entityBindings().values()
+                        .forEach(b -> keys.add(b.key().toString()));
+            } else if (typeArg.equals("item")) {
+                enricher.registry().itemBindings().values()
+                        .forEach(b -> keys.add(b.key().toString()));
+            }
+            return filter(keys, args[3]);
+        }
+
+        if (args.length == 5 && args[1].equalsIgnoreCase("check")) {
+            String typeArg = args[2].toLowerCase(Locale.ROOT);
+            List<String> profileIds = new ArrayList<>();
+            for (EligibilityProfile p : eligibilityCatalog.allProfiles()) {
+                if (typeArg.equals("entity") && p.bindingType() == BindingType.ENTITY) {
+                    profileIds.add(p.id());
+                } else if (typeArg.equals("item") && p.bindingType() == BindingType.ITEM) {
+                    profileIds.add(p.id());
+                }
+            }
+            return filter(profileIds, args[4]);
         }
 
         return List.of();

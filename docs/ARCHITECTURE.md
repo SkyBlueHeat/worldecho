@@ -28,6 +28,11 @@ dev.worldecho.domain.binding
   Content binding domain types: BindingType, ContentBinding, BindingDiagnostic,
   BindingRegistry, EnrichedContent. No Bukkit imports.
 
+dev.worldecho.domain.scenario
+  Scenario compatibility and eligibility diagnostics: EligibilityProfile,
+  EligibilityCatalog, EligibilityEvaluator, EligibilityResult, EligibilityDiagnostic,
+  EligibilityFormatter. No Bukkit imports.
+
 dev.worldecho.application
   Use cases: record memory, generate candidate, create story, schedule consequence,
   enrich content with bindings.
