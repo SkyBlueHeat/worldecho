@@ -75,3 +75,19 @@ items:
     default-limit: 10
     # Maximum number of ownership history entries that can be requested.
     maximum-limit: 50
+  automatic-tracking:
+    # Automatically identify and record items entering active player inventories.
+    # Normal players are not expected to manually track items.
+    enabled: true
+    # Track items in player inventories (main, hotbar, armor, offhand).
+    player-inventories: true
+    # Reconcile inventory when a player joins.
+    reconcile-on-join: true
+    # Reconcile inventory when a player respawns.
+    reconcile-on-respawn: true
+    # Reconcile inventory after inventory events (click, drag, pickup, etc.).
+    reconcile-after-inventory-events: true
+    # Preserve WorldEcho identity across anvil, smithing table, and grindstone transformations.
+    transform-identity-continuity: true
+    # Show debug messages for automatic tracking (admin only, console only).
+    debug-messages: false

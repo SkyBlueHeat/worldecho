@@ -135,3 +135,60 @@
   `OwnershipTransitionServiceTest` (11), `SqliteTrackedItemRepositoryTest` (6),
   `SqliteOwnershipLedgerRepositoryTest` (14), extended `SchemaMigratorTest`,
   extended `BundledResourcesTest`
+
+### Added (0.3.1-SNAPSHOT — Sprint 0.3B)
+
+- Automatic item identity classification: `UNIQUE` (one-of-a-kind) vs `LOT` (stackable)
+  via pure-Java `ItemIdentityPolicy` with confidence scores and explainable reasons
+- `LotCompatibilityFingerprint`: deterministic lot grouping by material, damage,
+  enchantments, and provider — normalized and case-insensitive
+- Automatic PDC identity assignment for UNIQUE items on first inventory observation
+- Lot persistence: `TrackedItemLot`, `LotLineageEntry` (splits/merges),
+  `LotOwnershipLedgerEntry`, `LotOwnershipState` with full SQLite repositories
+- `AutomaticItemIdentityService`: coordinates identity assignment and ownership
+  synchronization for both UNIQUE and LOT items
+- `PlayerInventoryReconciler`: captures immutable inventory snapshots on the main
+  thread and processes them asynchronously
+- `PlayerInventoryReconciliationScheduler`: coalesces multiple inventory events per
+  player into a single next-tick reconciliation — no every-tick scanner
+- Event listeners: join, respawn, inventory click, inventory drag, pickup, death,
+  drop, world change, crafting, furnace extract, offhand swap, fishing. Creative
+  inventory actions and merchant trades are covered by InventoryClickEvent. Hotbar
+  number-key swaps are covered by InventoryClickEvent with HOTBAR_SWAP action.
+- Transformation identity continuity: anvil, smithing table, grindstone preserve
+  source item's WorldEcho UUID on the result item via `ItemTransformationListener`
+- `ItemIdentityAdapter.writeIdentity` for copying existing IDs to result items
+- `ReconciliationCycle`: deterministic cycle IDs with idempotency keys per item/lot
+- `ReconciliationMetrics`: thread-safe counters for status reporting
+- `DuplicateObservationRegistry`: bounded in-memory duplicate UNIQUE detection
+- SQLite schema migration v3: `tracked_item_lots`, `lot_lineage`,
+  `item_lot_ownership_ledger` tables with indexes
+- `/worldecho item reconcile [player]` command with `worldecho.item.reconcile` permission
+- `/worldecho item policy` command with `worldecho.item.policy` permission
+- `/worldecho status` now shows automatic tracking metrics
+- Configuration: `items.automatic-tracking.*` section with enable/disable and
+  per-event-type reconcile toggles
+- English and Turkish messages for all new commands
+- Tests: `ItemIdentityPolicyTest` (14), `LotCompatibilityFingerprintTest` (7),
+  `ReconciliationCycleTest` (4), `ReconciliationMetricsTest` (4),
+  `DuplicateObservationRegistryTest` (5), `TrackedItemLotRepositoryTest` (8),
+  `AutomaticItemIdentityServiceTest` (10), `LotSplitMergeTest` (9),
+  extended `SchemaMigratorTest` (+1 v3 migration test),
+  extended `BundledResourcesTest` (+18 new message key checks)
+
+- `/worldecho item track` redefined as diagnostic/repair tool with diagnostic message
+- `/worldecho item policy` now shows lot fingerprint and uses new `item-policy-*` message keys
+- `DuplicateObservationRegistry` wired into `PlayerInventoryReconciler` for live duplicate detection
+- Reload schedules reconciliation for online players when automatic tracking changes from disabled to enabled
+- `PaperMessageService.raw()` for unformatted message lookup
+- 18 new localization keys (en + tr): policy output, classification, malformed identity,
+  duplicate identity, persistence failure, automatic tracking disabled, console usage,
+  manual track diagnostic wording
+- `duplicate-identity-observations` metric in `/worldecho status`
+
+### Known limitations (0.3.1-SNAPSHOT)
+
+- Transformation identity continuity covers anvil, smithing table, and grindstone;
+  crafting table and stonecutter are not yet covered
+- Duplicate observation detection is in-memory only and per-session
+- Lot amount tracking is approximate during concurrent inventory modifications

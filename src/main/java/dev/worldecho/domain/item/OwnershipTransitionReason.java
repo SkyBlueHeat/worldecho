@@ -20,6 +20,9 @@ public enum OwnershipTransitionReason {
     RETRIEVED,
     TRANSFERRED,
     RECOVERED,
+    INVENTORY_RECONCILIATION,
+    INVENTORY_TRANSFER,
+    AUTOMATIC_TRACKING,
     UNKNOWN;
 
     public String token() {

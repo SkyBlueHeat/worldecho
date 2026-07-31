@@ -27,3 +27,9 @@ permissions:
   worldecho.item.assign:
     description: Allows administratively assigning ownership of a tracked item
     default: op
+  worldecho.item.reconcile:
+    description: Allows triggering manual inventory reconciliation
+    default: op
+  worldecho.item.policy:
+    description: Allows inspecting item identity classification policy
+    default: op

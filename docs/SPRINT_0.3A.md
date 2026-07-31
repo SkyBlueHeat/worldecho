@@ -1,5 +1,9 @@
 # Sprint 0.3A — Item Identity and Ownership Ledger
 
+> **Prerequisite for Sprint 0.3B.** Sprint 0.3B (Automatic Player Inventory Identity &
+> Ownership Synchronization) builds on this sprint's PDC identity, ownership ledger, and
+> manual tracking commands. See `docs/SPRINT_0.3B.md`.
+
 ## Summary
 
 Sprint 0.3A introduces a persistent, stable identity for physical Minecraft items using

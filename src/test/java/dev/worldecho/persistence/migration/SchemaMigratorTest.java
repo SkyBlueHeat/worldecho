@@ -107,4 +107,38 @@ class SchemaMigratorTest {
             }
         }
     }
+
+    @Test
+    void createsLotTablesAndIndexesInV3() throws Exception {
+        DatabaseManager database = new DatabaseManager(tempDir.resolve("v3.db"));
+        database.initialize();
+
+        List<String> tables = new ArrayList<>();
+        List<String> indexes = new ArrayList<>();
+        try (Connection connection = database.openConnection();
+             Statement statement = connection.createStatement();
+             ResultSet resultSet = statement.executeQuery(
+                     "SELECT type, name FROM sqlite_master WHERE type IN ('table','index')")) {
+            while (resultSet.next()) {
+                String type = resultSet.getString(1);
+                String name = resultSet.getString(2);
+                if ("table".equals(type)) {
+                    tables.add(name);
+                } else {
+                    indexes.add(name);
+                }
+            }
+        }
+
+        assertTrue(tables.contains("tracked_item_lots"));
+        assertTrue(tables.contains("lot_lineage"));
+        assertTrue(tables.contains("item_lot_ownership_ledger"));
+        assertTrue(indexes.contains("idx_tracked_lots_fingerprint"));
+        assertTrue(indexes.contains("idx_tracked_lots_content_key"));
+        assertTrue(indexes.contains("idx_lot_lineage_lot_id"));
+        assertTrue(indexes.contains("idx_lot_lineage_related_lot"));
+        assertTrue(indexes.contains("idx_lot_ledger_lot_seq_desc"));
+        assertTrue(indexes.contains("idx_lot_ledger_new_subject"));
+        assertEquals(3, database.schemaVersion());
+    }
 }

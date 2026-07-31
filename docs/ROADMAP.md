@@ -17,13 +17,36 @@
 - ✅ content scan and validation commands
 - ✅ scenario eligibility diagnostics (Sprint 0.2B)
 
-## 0.3 — First Story
+## 0.3A — Persistent Item Identity & Ownership Ledger ✅
+
+- ✅ stable item UUID and ownership history
+- ✅ PDC-based persistent item identity
+- ✅ append-only ownership ledger
+
+## 0.3B — Automatic Player Inventory Identity & Ownership Synchronization ✅
+
+- ✅ automatic UNIQUE/LOT identity classification
+- ✅ automatic PDC assignment for player inventories
+- ✅ lot fingerprinting and persistence
+- ✅ coalescing inventory reconciliation scheduler
+- ✅ event-driven reconciliation (join, respawn, click, drag, pickup, death, drop, world change, crafting, furnace, fishing, offhand swap)
+- ✅ duplicate observation detection
+- ✅ transformation identity continuity: anvil, smithing, grindstone
+
+## 0.3C — World Drops, Containers & Entity Ownership
+
+- persistent dropped Item entity registry
+- WORLD_DROP ownership tracking
+- ENTITY ownership for mob equipment
+- container ownership (chests, hoppers, barrels)
+- shulker box and bundle nested content tracking
+- hopper tracking
+- container crawling
+
+## 0.3D — First Story — Stolen Item Carrier
 
 - `stolen_item_carrier`
 - `stolen_relic_command_chain`
-- ✅ stable item UUID and ownership history (Sprint 0.3A)
-- ✅ PDC-based persistent item identity (Sprint 0.3A)
-- ✅ append-only ownership ledger (Sprint 0.3A)
 - generated named rival
 - delayed rumor
 - recovery after restart

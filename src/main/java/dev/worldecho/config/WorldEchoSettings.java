@@ -23,7 +23,14 @@ public record WorldEchoSettings(
         int recentMaximumCount,
         boolean itemIdentityEnabled,
         int itemHistoryDefaultLimit,
-        int itemHistoryMaximumLimit
+        int itemHistoryMaximumLimit,
+        boolean automaticTrackingEnabled,
+        boolean automaticTrackingPlayerInventories,
+        boolean automaticTrackingReconcileOnJoin,
+        boolean automaticTrackingReconcileOnRespawn,
+        boolean automaticTrackingReconcileAfterInventoryEvents,
+        boolean automaticTrackingTransformIdentityContinuity,
+        boolean automaticTrackingDebugMessages
 ) {
 
     public WorldEchoSettings {

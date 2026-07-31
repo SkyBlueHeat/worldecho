@@ -110,6 +110,23 @@ server restart.
 | `history.default-limit` | 1–1000 | `10` | Default number of ownership history entries shown by `/worldecho item history` when no count is given. |
 | `history.maximum-limit` | 1–1000 | `50` | Maximum number of ownership history entries that can be requested in a single command. |
 
+## items.automatic-tracking
+
+WorldEcho automatically identifies and records items entering active player inventories.
+Normal players and server administrators are not expected to manually track items.
+
+| Key | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `enabled` | boolean | `true` | Master switch for automatic item tracking. When `false`, no automatic identity assignment or ownership reconciliation occurs. |
+| `player-inventories` | boolean | `true` | Track items in player inventories (main, hotbar, armor, offhand). |
+| `reconcile-on-join` | boolean | `true` | Schedule inventory reconciliation when a player joins. |
+| `reconcile-on-respawn` | boolean | `true` | Schedule inventory reconciliation when a player respawns. |
+| `reconcile-after-inventory-events` | boolean | `true` | Schedule reconciliation after inventory click, drag, pickup, drop, crafting, furnace extract, offhand swap, and fishing events. |
+| `transform-identity-continuity` | boolean | `true` | Preserve WorldEcho UUID across anvil, smithing table, and grindstone transformations. |
+| `debug-messages` | boolean | `false` | Show debug messages for automatic tracking (admin only, console only). |
+
+When automatic tracking is disabled, manual commands (`/worldecho item track`, `/worldecho item assign-owner`) remain available as diagnostic and repair tools.
+
 ## Content bindings (`bindings.yml`)
 
 Bindings map provider-specific content IDs to WorldEcho semantic metadata. A binding

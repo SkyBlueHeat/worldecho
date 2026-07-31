@@ -72,6 +72,10 @@ public final class PaperMessageService {
         sender.sendMessage(component(key, placeholders));
     }
 
+    public String raw(CommandSender sender, String key) {
+        return catalog.format(key);
+    }
+
     private static Map<String, String> readLocale(
             Plugin plugin,
             String locale,

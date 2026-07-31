@@ -16,6 +16,7 @@ import dev.worldecho.domain.scenario.EligibilityResult;
 import dev.worldecho.domain.item.ItemDescriptor;
 import dev.worldecho.domain.item.ItemScore;
 import dev.worldecho.domain.item.OwnershipState;
+import dev.worldecho.domain.item.ReconciliationMetrics;
 import dev.worldecho.domain.item.TrackedItemId;
 import dev.worldecho.domain.item.TrackedItemRecord;
 import dev.worldecho.domain.memory.StoryMemoryEvent;
@@ -49,6 +50,7 @@ import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.logging.Level;
 
+import dev.worldecho.paper.inventory.PlayerInventoryReconciliationScheduler;
 import dev.worldecho.paper.item.ItemIdentityAdapter;
 import dev.worldecho.persistence.OwnershipLedgerRepository;
 import dev.worldecho.persistence.TrackedItemRepository;
@@ -90,6 +92,7 @@ public final class WorldEchoCommand implements CommandExecutor, TabCompleter {
     private final TrackedItemRepository trackedItemRepository;
     private final OwnershipLedgerRepository ledgerRepository;
     private final ItemIdentityAdapter identityAdapter;
+    private final ReconciliationMetrics reconciliationMetrics;
     private final ItemCommandHandler itemHandler;
 
     public WorldEchoCommand(
@@ -106,7 +109,9 @@ public final class WorldEchoCommand implements CommandExecutor, TabCompleter {
             Supplier<List<String>> reloadAction,
             ItemIdentityAdapter identityAdapter,
             TrackedItemRepository trackedItemRepository,
-            OwnershipLedgerRepository ledgerRepository
+            OwnershipLedgerRepository ledgerRepository,
+            PlayerInventoryReconciliationScheduler reconciliationScheduler,
+            ReconciliationMetrics reconciliationMetrics
     ) {
         this.plugin = Objects.requireNonNull(plugin, "plugin");
         this.settingsSupplier = Objects.requireNonNull(settingsSupplier, "settingsSupplier");
@@ -122,6 +127,7 @@ public final class WorldEchoCommand implements CommandExecutor, TabCompleter {
         this.trackedItemRepository = Objects.requireNonNull(trackedItemRepository, "trackedItemRepository");
         this.ledgerRepository = Objects.requireNonNull(ledgerRepository, "ledgerRepository");
         this.identityAdapter = Objects.requireNonNull(identityAdapter, "identityAdapter");
+        this.reconciliationMetrics = Objects.requireNonNull(reconciliationMetrics, "reconciliationMetrics");
         this.itemHandler = new ItemCommandHandler(
                 plugin,
                 settingsSupplier,
@@ -132,7 +138,9 @@ public final class WorldEchoCommand implements CommandExecutor, TabCompleter {
                 identityAdapter,
                 trackedItemRepository,
                 ledgerRepository,
-                queryExecutor
+                queryExecutor,
+                reconciliationScheduler,
+                reconciliationMetrics
         );
     }
 
@@ -207,6 +215,15 @@ public final class WorldEchoCommand implements CommandExecutor, TabCompleter {
                 },
                 "status-failed"
         );
+
+        line(sender, "auto-tracking", settings.automaticTrackingEnabled() ? "enabled" : "disabled");
+        line(sender, "recon.count", Long.toString(reconciliationMetrics.inventoryReconciliations()));
+        line(sender, "recon.identities", Long.toString(reconciliationMetrics.automaticIdentitiesAssigned()));
+        line(sender, "recon.lots", Long.toString(reconciliationMetrics.automaticLotsAssigned()));
+        line(sender, "recon.ownership", Long.toString(reconciliationMetrics.ownershipTransitionsRecorded()));
+        line(sender, "recon.warnings", Long.toString(reconciliationMetrics.identityWarnings()));
+        line(sender, "recon.duplicates", Long.toString(reconciliationMetrics.duplicateIdentityObservations()));
+        line(sender, "recon.pending", Long.toString(reconciliationMetrics.pendingReconciliations()));
     }
 
     private void recent(CommandSender sender, String[] args) {
