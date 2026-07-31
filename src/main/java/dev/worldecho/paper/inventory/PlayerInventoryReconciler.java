@@ -5,6 +5,7 @@ import dev.worldecho.config.WorldEchoSettings;
 import dev.worldecho.domain.content.ContentKey;
 import dev.worldecho.domain.content.IdentifiedContent;
 import dev.worldecho.domain.item.AutomaticItemIdentityService;
+import dev.worldecho.domain.item.DuplicateObservationRegistry;
 import dev.worldecho.domain.item.IdentityClassificationResult;
 import dev.worldecho.domain.item.ItemDescriptor;
 import dev.worldecho.domain.item.ItemIdentityPolicy;
@@ -48,6 +49,7 @@ public final class PlayerInventoryReconciler {
     private final ItemIdentityAdapter identityAdapter;
     private final AutomaticItemIdentityService identityService;
     private final ReconciliationMetrics metrics;
+    private final DuplicateObservationRegistry duplicateRegistry;
     private final AtomicLong cycleSequenceCounter = new AtomicLong(0);
     private final String serverSessionId;
 
@@ -58,6 +60,7 @@ public final class PlayerInventoryReconciler {
             ItemIdentityAdapter identityAdapter,
             AutomaticItemIdentityService identityService,
             ReconciliationMetrics metrics,
+            DuplicateObservationRegistry duplicateRegistry,
             String serverSessionId
     ) {
         this.settingsSupplier = settingsSupplier;
@@ -66,6 +69,7 @@ public final class PlayerInventoryReconciler {
         this.identityAdapter = identityAdapter;
         this.identityService = identityService;
         this.metrics = metrics;
+        this.duplicateRegistry = duplicateRegistry;
         this.serverSessionId = serverSessionId;
     }
 
@@ -213,6 +217,25 @@ public final class PlayerInventoryReconciler {
                     metrics.recordIdentityWarning();
                 } else if (result.status() == SlotProcessResult.Status.PERSISTENCE_FAILURE) {
                     metrics.recordIdentityWarning();
+                }
+
+                if (slot.existingUniqueId() != null && slot.isUnique()) {
+                    String contentFingerprint = slot.material() + ":" + slot.amount();
+                    DuplicateObservationRegistry.Observation observation =
+                            new DuplicateObservationRegistry.Observation(
+                                    slot.existingUniqueId(),
+                                    playerUuid,
+                                    slot.inventorySection(),
+                                    slot.slotIndex(),
+                                    contentFingerprint,
+                                    cycle.cycleSequence(),
+                                    System.currentTimeMillis()
+                            );
+                    DuplicateObservationRegistry.DuplicateDiagnostic diagnostic =
+                            duplicateRegistry.observe(observation);
+                    if (diagnostic != null) {
+                        metrics.recordDuplicateIdentity();
+                    }
                 }
 
                 if (result.optionalOwnershipResult().isPresent()) {

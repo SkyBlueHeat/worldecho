@@ -87,6 +87,7 @@ public final class WorldEchoPlugin extends JavaPlugin {
     private LotOwnershipTransitionService lotOwnershipTransitionService;
     private AutomaticItemIdentityService automaticIdentityService;
     private ReconciliationMetrics reconciliationMetrics;
+    private dev.worldecho.domain.item.DuplicateObservationRegistry duplicateObservationRegistry;
     private PlayerInventoryReconciler inventoryReconciler;
     private PlayerInventoryReconciliationScheduler reconciliationScheduler;
 
@@ -158,6 +159,7 @@ public final class WorldEchoPlugin extends JavaPlugin {
                 ownershipTransitionService, lotOwnershipTransitionService,
                 java.time.Clock.systemUTC());
         reconciliationMetrics = new ReconciliationMetrics();
+        duplicateObservationRegistry = new dev.worldecho.domain.item.DuplicateObservationRegistry(300_000L);
 
         String serverSessionId = java.util.UUID.randomUUID().toString();
         inventoryReconciler = new PlayerInventoryReconciler(
@@ -167,6 +169,7 @@ public final class WorldEchoPlugin extends JavaPlugin {
                 itemIdentityAdapter,
                 automaticIdentityService,
                 reconciliationMetrics,
+                duplicateObservationRegistry,
                 serverSessionId
         );
         reconciliationScheduler = new PlayerInventoryReconciliationScheduler(
@@ -248,9 +251,13 @@ public final class WorldEchoPlugin extends JavaPlugin {
      * @return validation warnings that should be shown to the administrator
      */
     public List<String> reloadSettings() {
+        boolean wasTrackingEnabled = settings != null && settings.automaticTrackingEnabled();
         reloadConfig();
         List<String> warnings = new ArrayList<>(applyConfiguration());
         warnings.addAll(loadBindings());
+        if (!wasTrackingEnabled && settings.automaticTrackingEnabled() && reconciliationScheduler != null) {
+            reconciliationScheduler.scheduleForAllOnline("reload-enable");
+        }
         return warnings;
     }
 

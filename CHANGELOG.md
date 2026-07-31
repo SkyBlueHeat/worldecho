@@ -151,7 +151,10 @@
   thread and processes them asynchronously
 - `PlayerInventoryReconciliationScheduler`: coalesces multiple inventory events per
   player into a single next-tick reconciliation — no every-tick scanner
-- Event listeners: join, respawn, inventory click, inventory drag, pickup, death
+- Event listeners: join, respawn, inventory click, inventory drag, pickup, death,
+  drop, world change, crafting, furnace extract, offhand swap, fishing. Creative
+  inventory actions and merchant trades are covered by InventoryClickEvent. Hotbar
+  number-key swaps are covered by InventoryClickEvent with HOTBAR_SWAP action.
 - Transformation identity continuity: anvil, smithing table, grindstone preserve
   source item's WorldEcho UUID on the result item via `ItemTransformationListener`
 - `ItemIdentityAdapter.writeIdentity` for copying existing IDs to result items
@@ -169,7 +172,19 @@
 - Tests: `ItemIdentityPolicyTest` (14), `LotCompatibilityFingerprintTest` (7),
   `ReconciliationCycleTest` (4), `ReconciliationMetricsTest` (4),
   `DuplicateObservationRegistryTest` (5), `TrackedItemLotRepositoryTest` (8),
-  extended `SchemaMigratorTest` (+1 v3 migration test)
+  `AutomaticItemIdentityServiceTest` (10), `LotSplitMergeTest` (9),
+  extended `SchemaMigratorTest` (+1 v3 migration test),
+  extended `BundledResourcesTest` (+18 new message key checks)
+
+- `/worldecho item track` redefined as diagnostic/repair tool with diagnostic message
+- `/worldecho item policy` now shows lot fingerprint and uses new `item-policy-*` message keys
+- `DuplicateObservationRegistry` wired into `PlayerInventoryReconciler` for live duplicate detection
+- Reload schedules reconciliation for online players when automatic tracking changes from disabled to enabled
+- `PaperMessageService.raw()` for unformatted message lookup
+- 18 new localization keys (en + tr): policy output, classification, malformed identity,
+  duplicate identity, persistence failure, automatic tracking disabled, console usage,
+  manual track diagnostic wording
+- `duplicate-identity-observations` metric in `/worldecho status`
 
 ### Known limitations (0.3.1-SNAPSHOT)
 
