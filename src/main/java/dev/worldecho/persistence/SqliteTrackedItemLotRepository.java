@@ -15,6 +15,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
+import dev.worldecho.domain.item.OwnershipSubjectType;
+
 public final class SqliteTrackedItemLotRepository implements TrackedItemLotRepository {
 
     private final DatabaseManager databaseManager;
@@ -30,8 +32,8 @@ public final class SqliteTrackedItemLotRepository implements TrackedItemLotRepos
                      "INSERT OR IGNORE INTO tracked_item_lots "
                              + "(lot_id, created_at, first_seen_at, last_seen_at, content_key, "
                              + "provider_id, material, fingerprint, initial_amount, current_amount, "
-                             + "tracking_reason, created_by_subject) "
-                             + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")) {
+                             + "tracking_reason, created_by_subject, owner_type, owner_stable_id, owner_display_snapshot) "
+                             + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")) {
             statement.setString(1, lot.lotId().toString());
             statement.setLong(2, lot.createdAt().toEpochMilli());
             statement.setLong(3, lot.firstSeenAt().toEpochMilli());
@@ -44,6 +46,9 @@ public final class SqliteTrackedItemLotRepository implements TrackedItemLotRepos
             statement.setInt(10, lot.currentAmount());
             statement.setString(11, lot.trackingReason());
             statement.setString(12, lot.createdBySubject());
+            statement.setString(13, lot.ownerType());
+            statement.setString(14, lot.ownerStableId());
+            statement.setString(15, lot.ownerDisplaySnapshot());
             int rows = statement.executeUpdate();
             return rows > 0 ? CreateResult.CREATED : CreateResult.ALREADY_EXISTS;
         }
@@ -85,6 +90,52 @@ public final class SqliteTrackedItemLotRepository implements TrackedItemLotRepos
             try (ResultSet rs = statement.executeQuery()) {
                 return rs.next() ? Optional.of(mapRow(rs)) : Optional.empty();
             }
+        }
+    }
+
+    @Override
+    public Optional<TrackedItemLot> findByOwnerAndFingerprint(
+            OwnershipSubjectType ownerType, String ownerStableId,
+            LotCompatibilityFingerprint fingerprint) throws SQLException {
+        try (Connection connection = databaseManager.openConnection();
+             PreparedStatement statement = connection.prepareStatement(
+                     "SELECT * FROM tracked_item_lots WHERE owner_type = ? AND owner_stable_id = ? AND fingerprint = ? "
+                             + "ORDER BY last_seen_at DESC LIMIT 1")) {
+            statement.setString(1, ownerType.token());
+            statement.setString(2, ownerStableId);
+            statement.setString(3, fingerprint.serialize());
+            try (ResultSet rs = statement.executeQuery()) {
+                return rs.next() ? Optional.of(mapRow(rs)) : Optional.empty();
+            }
+        }
+    }
+
+    @Override
+    public List<TrackedItemLot> findAllByOwner(
+            OwnershipSubjectType ownerType, String ownerStableId) throws SQLException {
+        List<TrackedItemLot> results = new ArrayList<>();
+        try (Connection connection = databaseManager.openConnection();
+             PreparedStatement statement = connection.prepareStatement(
+                     "SELECT * FROM tracked_item_lots WHERE owner_type = ? AND owner_stable_id = ?")) {
+            statement.setString(1, ownerType.token());
+            statement.setString(2, ownerStableId);
+            try (ResultSet rs = statement.executeQuery()) {
+                while (rs.next()) {
+                    results.add(mapRow(rs));
+                }
+            }
+        }
+        return results;
+    }
+
+    @Override
+    public void updateOwnerDisplaySnapshot(TrackedItemLotId lotId, String displayName) throws SQLException {
+        try (Connection connection = databaseManager.openConnection();
+             PreparedStatement statement = connection.prepareStatement(
+                     "UPDATE tracked_item_lots SET owner_display_snapshot = ? WHERE lot_id = ?")) {
+            statement.setString(1, displayName == null ? "" : displayName);
+            statement.setString(2, lotId.toString());
+            statement.executeUpdate();
         }
     }
 
@@ -183,6 +234,16 @@ public final class SqliteTrackedItemLotRepository implements TrackedItemLotRepos
     }
 
     private TrackedItemLot mapRow(ResultSet rs) throws SQLException {
+        String ownerType = "";
+        String ownerStableId = "";
+        String ownerDisplaySnapshot = "";
+        try {
+            ownerType = rs.getString("owner_type");
+            ownerStableId = rs.getString("owner_stable_id");
+            ownerDisplaySnapshot = rs.getString("owner_display_snapshot");
+        } catch (SQLException ignored) {
+            // Columns may not exist before migration v4
+        }
         return new TrackedItemLot(
                 TrackedItemLotId.parse(rs.getString("lot_id")),
                 Instant.ofEpochMilli(rs.getLong("created_at")),
@@ -195,7 +256,10 @@ public final class SqliteTrackedItemLotRepository implements TrackedItemLotRepos
                 rs.getInt("initial_amount"),
                 rs.getInt("current_amount"),
                 rs.getString("tracking_reason"),
-                rs.getString("created_by_subject")
+                rs.getString("created_by_subject"),
+                ownerType == null ? "" : ownerType,
+                ownerStableId == null ? "" : ownerStableId,
+                ownerDisplaySnapshot == null ? "" : ownerDisplaySnapshot
         );
     }
 

@@ -191,11 +191,11 @@
 - Transformation identity continuity covers anvil, smithing table, and grindstone;
   crafting table and stonecutter produce items with new identities
 - Duplicate observation detection is in-memory only and per-session
-- LOT items do not receive PDC metadata; lot identity is owner-scoped (fingerprint + player UUID).
+- LOT items do not receive PDC metadata; lot identity is owner-scoped (stable owner ID + fingerprint).
   Physical split/merge lineage is not tracked by automatic tracking.
-- Lot amount reflects the latest observed stack size for a single slot, not a guaranteed
-  total across all inventory slots. Concurrent inventory modifications may produce stale
-  amounts until the next reconciliation cycle.
+- Lot amount is the sum of all observed stacks with the same fingerprint for that owner in a
+  single reconciliation cycle. Existing lots whose fingerprint is absent from the snapshot are
+  zeroed. Concurrent inventory modifications may produce stale amounts until the next cycle.
 - Headless Paper 26.2 verification (schema migration, status, reload, shutdown) not performed
 
 ### Gap fix 2 (0.3.1-SNAPSHOT)
@@ -219,3 +219,30 @@
   `ReconciliationPlanGeneratorTest` (9), `SlotSnapshotComparatorTest` (10),
   `AutomaticItemIdentityServiceTest` +11 (owner-scoped, restart-safe, no ping-pong, join plan, quantity handling),
   `LotSplitMergeTest` +4 (owner-scoped lookup tests)
+
+### Gap fix 3 (0.3.1-SNAPSHOT)
+
+- **Stable owner-scoped lot aggregation**: LOT amounts are now aggregated per owner+fingerprint
+  in a single reconciliation cycle. Multiple stacks of the same fingerprint are summed into one
+  update, replacing the previous per-slot latest-stack-size behavior.
+- Schema migration v4: adds `owner_type`, `owner_stable_id`, `owner_display_snapshot` columns
+  to `tracked_item_lots`. Backfills from `created_by_subject` for existing rows. Adds indexes
+  `idx_tracked_lots_owner_fp` and `idx_tracked_lots_owner_fp_unique` on
+  `(owner_type, owner_stable_id, fingerprint)`.
+- `TrackedItemLot` record extended with `ownerType`, `ownerStableId`, `ownerDisplaySnapshot`
+  fields (normalized: type/stableId lowercased, display snapshot stripped).
+- `TrackedItemLotRepository` interface: new `findByOwnerAndFingerprint`, `findAllByOwner`,
+  `updateOwnerDisplaySnapshot` methods for stable owner-scoped lookup.
+- `SqliteTrackedItemLotRepository`: INSERT includes new columns; `mapRow` reads them with
+  backward-compatible fallback; new query methods implemented.
+- `AutomaticItemIdentityService.processLotSlots(ObservedInventorySnapshot)`: replaces
+  per-slot `processLotSlot` with snapshot-based aggregation. Groups LOT slots by fingerprint,
+  sums amounts, performs one update per owner+fingerprint per cycle.
+- **Zeroing logic**: existing lots whose fingerprint is absent from the current snapshot are
+  set to `amount=0`, reflecting that the player no longer holds those items.
+- `PlayerInventoryReconciler`: UNIQUE items processed individually in the plan loop; LOT items
+  processed as a single aggregated batch via `processLotSlots(snapshot)`.
+- `AutomaticItemIdentityServiceTest` rewritten: 25 tests covering aggregation, zeroing,
+  idempotency, split/merge preservation, acquisition/consumption, display name independence,
+  restart safety, malformed isolation, negative amount guard.
+- `SchemaMigratorTest`: updated for v4 migration assertions (new indexes, schema version 4).

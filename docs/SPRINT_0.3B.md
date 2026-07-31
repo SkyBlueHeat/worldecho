@@ -10,7 +10,7 @@ This sprint introduces a complete automatic item identity and ownership synchron
 
 - **Identity classification**: Items are classified as `UNIQUE` (one-of-a-kind, tracked individually) or `LOT` (stackable, tracked as a lot) using a pure-Java policy engine.
 - **Automatic PDC assignment**: UNIQUE items get a WorldEcho UUID written to their Persistent Data Container on first observation.
-- **Owner-scoped lot aggregation (Model A)**: LOT items are grouped per-player by a deterministic `LotCompatibilityFingerprint` (material, damage, enchantments, provider). Each player gets their own lot aggregate for the same fingerprint. No PDC metadata is written to LOT items. Lot amount reflects the latest observed stack size, not a guaranteed total across slots.
+- **Owner-scoped lot aggregation (Model A)**: LOT items are grouped per-player by a deterministic `LotCompatibilityFingerprint` (material, damage, enchantments, provider). Each player gets their own lot aggregate for the same fingerprint. No PDC metadata is written to LOT items. Lot amount is the **sum of all observed stacks** with the same fingerprint for that owner in a single reconciliation cycle — one update per owner+fingerprint per cycle. Existing lots whose fingerprint is absent from the snapshot are zeroed.
 - **Ownership reconciliation**: Every reconciliation cycle records ownership transitions idempotently, using deterministic cycle-scoped keys.
 - **Coalescing scheduler**: Multiple inventory events in the same tick coalesce into a single next-tick reconciliation — no every-tick scanner, no unbounded task creation.
 - **Event-driven**: Join, respawn, inventory click/drag, pickup, death, drop, world change, crafting, furnace extract, offhand swap, and fishing events trigger reconciliation. Creative inventory actions and merchant trades are covered by InventoryClickEvent. Hotbar number-key swaps are covered by InventoryClickEvent with HOTBAR_SWAP action.
@@ -64,6 +64,16 @@ Adds three new tables with indexes:
 - `item_lot_ownership_ledger` — append-only lot ownership transitions with sequence numbers
 
 Indexes: `idx_tracked_lots_fingerprint`, `idx_tracked_lots_fingerprint_owner`, `idx_tracked_lots_content_key`, `idx_lot_lineage_lot_id`, `idx_lot_lineage_related_lot`, `idx_lot_ledger_lot_seq_desc`, `idx_lot_ledger_new_subject`
+
+## Schema migration v4
+
+Adds stable owner scope columns to `tracked_item_lots`:
+
+- `owner_type` — normalized owner type token (e.g. `player`)
+- `owner_stable_id` — stable owner identifier (UUID for players)
+- `owner_display_snapshot` — display name at last observation
+
+Backfills owner data from existing `created_by_subject` column. Adds indexes `idx_tracked_lots_owner_fp` and `idx_tracked_lots_owner_fp_unique` on `(owner_type, owner_stable_id, fingerprint)` for efficient owner-scoped lot lookup.
 
 ## New Paper-layer types
 
@@ -137,12 +147,12 @@ On shutdown, the scheduler rejects new reconciliation requests, cancels pending 
 ## Tests
 
 - Test count: see build output for exact count
-- New tests: `ItemIdentityPolicyTest` (14), `LotCompatibilityFingerprintTest` (7), `ReconciliationCycleTest` (4), `ReconciliationMetricsTest` (4), `DuplicateObservationRegistryTest` (5), `ReconciliationSchedulerStateTest` (9), `TransformationDecisionTest` (22), `ReconciliationPlanGeneratorTest` (9), `SlotSnapshotComparatorTest` (10), `TrackedItemLotRepositoryTest` (8), `AutomaticItemIdentityServiceTest` (21), `LotSplitMergeTest` (13), `SchemaMigratorTest` +1 v3 test, `BundledResourcesTest` +18 new message key checks
+- New tests: `ItemIdentityPolicyTest` (14), `LotCompatibilityFingerprintTest` (7), `ReconciliationCycleTest` (4), `ReconciliationMetricsTest` (4), `DuplicateObservationRegistryTest` (5), `ReconciliationSchedulerStateTest` (9), `TransformationDecisionTest` (22), `ReconciliationPlanGeneratorTest` (9), `SlotSnapshotComparatorTest` (10), `TrackedItemLotRepositoryTest` (8), `AutomaticItemIdentityServiceTest` (25), `LotSplitMergeTest` (13), `SchemaMigratorTest` +1 v3 test +1 v4 test, `BundledResourcesTest` +18 new message key checks
 
 ## Known limitations
 
 - Duplicate observation detection is in-memory only and per-session; it does not persist across restarts
-- LOT items do not receive PDC metadata; lot identity is owner-scoped and resolved by fingerprint + player UUID at reconciliation time. Physical split/merge lineage is not tracked by automatic tracking.
-- Lot amount reflects the latest observed stack size for a single slot, not a guaranteed total across all inventory slots. Concurrent inventory modifications may produce stale amounts until the next reconciliation cycle.
+- LOT items do not receive PDC metadata; lot identity is owner-scoped and resolved by stable owner ID (UUID) + fingerprint at reconciliation time. Physical split/merge lineage is not tracked by automatic tracking.
+- Lot amount is the sum of all observed stacks with the same fingerprint for that owner in a single reconciliation cycle. Existing lots whose fingerprint is absent from the snapshot are zeroed. Concurrent inventory modifications may produce stale amounts until the next reconciliation cycle.
 - Transformation identity continuity covers anvil, smithing table, and grindstone; other crafting mechanics (crafting table, stonecutter) produce items with new identities
 - Headless Paper 26.2 verification (schema migration, status, reload, shutdown) not performed — requires a running Paper server

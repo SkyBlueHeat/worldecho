@@ -9,6 +9,8 @@ import java.sql.SQLException;
 import java.util.List;
 import java.util.Optional;
 
+import dev.worldecho.domain.item.OwnershipSubjectType;
+
 /**
  * Repository for {@link TrackedItemLot} persistence.
  */
@@ -24,6 +26,15 @@ public interface TrackedItemLotRepository {
 
     Optional<TrackedItemLot> findByFingerprintAndOwner(
             LotCompatibilityFingerprint fingerprint, String ownerSubject) throws SQLException;
+
+    Optional<TrackedItemLot> findByOwnerAndFingerprint(
+            OwnershipSubjectType ownerType, String ownerStableId,
+            LotCompatibilityFingerprint fingerprint) throws SQLException;
+
+    List<TrackedItemLot> findAllByOwner(
+            OwnershipSubjectType ownerType, String ownerStableId) throws SQLException;
+
+    void updateOwnerDisplaySnapshot(TrackedItemLotId lotId, String displayName) throws SQLException;
 
     boolean exists(TrackedItemLotId lotId) throws SQLException;
 

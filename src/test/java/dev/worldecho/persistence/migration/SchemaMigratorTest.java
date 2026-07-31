@@ -136,10 +136,12 @@ class SchemaMigratorTest {
         assertTrue(indexes.contains("idx_tracked_lots_fingerprint"));
         assertTrue(indexes.contains("idx_tracked_lots_fingerprint_owner"));
         assertTrue(indexes.contains("idx_tracked_lots_content_key"));
+        assertTrue(indexes.contains("idx_tracked_lots_owner_fp"));
+        assertTrue(indexes.contains("idx_tracked_lots_owner_fp_unique"));
         assertTrue(indexes.contains("idx_lot_lineage_lot_id"));
         assertTrue(indexes.contains("idx_lot_lineage_related_lot"));
         assertTrue(indexes.contains("idx_lot_ledger_lot_seq_desc"));
         assertTrue(indexes.contains("idx_lot_ledger_new_subject"));
-        assertEquals(3, database.schemaVersion());
+        assertEquals(4, database.schemaVersion());
     }
 }

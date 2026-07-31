@@ -201,6 +201,7 @@ public final class PlayerInventoryReconciler {
 
         ReconciliationPlanGenerator.ReconciliationPlan plan = planGenerator.generatePlan(snapshot);
 
+        // Process UNIQUE items individually
         for (ReconciliationPlanGenerator.SlotPlan slotPlan : plan.slotPlans()) {
             ObservedInventorySlot slot = slotPlan.slot();
 
@@ -234,12 +235,6 @@ public final class PlayerInventoryReconciler {
                     }
                 } else if (slotPlan.action() == ReconciliationPlanGenerator.SlotAction.PROCESS_UNIQUE) {
                     result = identityService.processUniqueSlot(slot, playerUuid, playerDisplayName, cycle);
-                } else if (slotPlan.action() == ReconciliationPlanGenerator.SlotAction.PROCESS_LOT) {
-                    result = identityService.processLotSlot(slot, playerUuid, playerDisplayName, cycle);
-                    if (result.status() == SlotProcessResult.Status.PROCESSED
-                            || result.status() == SlotProcessResult.Status.ASSIGNED) {
-                        metrics.recordLotAssigned();
-                    }
                 } else {
                     continue;
                 }
@@ -258,6 +253,25 @@ public final class PlayerInventoryReconciler {
                 }
             } catch (Exception exception) {
                 metrics.recordIdentityWarning();
+            }
+        }
+
+        // Process LOT items as aggregated groups (one update per owner+fingerprint)
+        List<SlotProcessResult> lotResults = identityService.processLotSlots(snapshot);
+        for (SlotProcessResult lotResult : lotResults) {
+            if (lotResult.status() == SlotProcessResult.Status.PROCESSED
+                    || lotResult.status() == SlotProcessResult.Status.ASSIGNED) {
+                metrics.recordLotAssigned();
+            }
+            if (lotResult.status() == SlotProcessResult.Status.MALFORMED
+                    || lotResult.status() == SlotProcessResult.Status.PERSISTENCE_FAILURE) {
+                metrics.recordIdentityWarning();
+            }
+            if (lotResult.optionalOwnershipResult().isPresent()) {
+                OwnershipResult ownershipResult = lotResult.optionalOwnershipResult().get();
+                if (ownershipResult.status() == OwnershipResultStatus.RECORDED) {
+                    metrics.recordOwnershipTransition();
+                }
             }
         }
 

@@ -188,6 +188,31 @@ public final class SchemaMigrator {
                     CREATE INDEX IF NOT EXISTS idx_lot_ledger_new_subject
                     ON item_lot_ownership_ledger(new_subject_type, new_subject_id)
                     """
+            )),
+            new Migration(4, "stable owner scope for lot aggregates", List.of(
+                    """
+                    ALTER TABLE tracked_item_lots ADD COLUMN owner_type TEXT NOT NULL DEFAULT ''
+                    """,
+                    """
+                    ALTER TABLE tracked_item_lots ADD COLUMN owner_stable_id TEXT NOT NULL DEFAULT ''
+                    """,
+                    """
+                    ALTER TABLE tracked_item_lots ADD COLUMN owner_display_snapshot TEXT NOT NULL DEFAULT ''
+                    """,
+                    """
+                    UPDATE tracked_item_lots
+                    SET owner_type = 'player',
+                        owner_stable_id = substr(created_by_subject, 8)
+                    WHERE created_by_subject LIKE 'player:%'
+                    """,
+                    """
+                    CREATE INDEX IF NOT EXISTS idx_tracked_lots_owner_fp
+                    ON tracked_item_lots(owner_type, owner_stable_id, fingerprint)
+                    """,
+                    """
+                    CREATE INDEX IF NOT EXISTS idx_tracked_lots_owner_fp_unique
+                    ON tracked_item_lots(owner_type, owner_stable_id, fingerprint)
+                    """
             ))
     );
 

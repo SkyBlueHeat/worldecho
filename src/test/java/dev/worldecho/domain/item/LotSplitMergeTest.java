@@ -59,7 +59,10 @@ class LotSplitMergeTest {
                 ContentKey.parse("minecraft:" + material.replace("minecraft:", "")),
                 "minecraft", material, fp,
                 amount, amount, "AUTOMATIC",
-                OwnershipSubject.player(ownerUuid, "TestPlayer").describe()
+                OwnershipSubject.player(ownerUuid, "TestPlayer").describe(),
+                OwnershipSubjectType.PLAYER.token(),
+                ownerUuid.toString(),
+                "TestPlayer"
         ));
         lotOwnershipService.transition(lotId,
                 OwnershipSubject.player(ownerUuid, "TestPlayer"),
@@ -85,7 +88,10 @@ class LotSplitMergeTest {
                 ContentKey.parse("minecraft:cobblestone"),
                 "minecraft", "minecraft:cobblestone", fp,
                 32, 32, "AUTOMATIC",
-                OwnershipSubject.player(owner, "TestPlayer").describe()
+                OwnershipSubject.player(owner, "TestPlayer").describe(),
+                OwnershipSubjectType.PLAYER.token(),
+                owner.toString(),
+                "TestPlayer"
         ));
 
         LotLineageEntry lineage = new LotLineageEntry(

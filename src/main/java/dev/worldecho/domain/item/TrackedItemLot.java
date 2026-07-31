@@ -24,7 +24,10 @@ public record TrackedItemLot(
         int initialAmount,
         int currentAmount,
         String trackingReason,
-        String createdBySubject
+        String createdBySubject,
+        String ownerType,
+        String ownerStableId,
+        String ownerDisplaySnapshot
 ) {
 
     public TrackedItemLot {
@@ -38,6 +41,9 @@ public record TrackedItemLot(
         material = material == null ? "" : material.strip();
         trackingReason = trackingReason == null ? "" : trackingReason.strip();
         createdBySubject = createdBySubject == null ? "" : createdBySubject.strip();
+        ownerType = ownerType == null ? "" : ownerType.strip().toLowerCase(java.util.Locale.ROOT);
+        ownerStableId = ownerStableId == null ? "" : ownerStableId.strip().toLowerCase(java.util.Locale.ROOT);
+        ownerDisplaySnapshot = ownerDisplaySnapshot == null ? "" : ownerDisplaySnapshot.strip();
         initialAmount = Math.max(0, initialAmount);
         currentAmount = Math.max(0, currentAmount);
     }
@@ -46,7 +52,8 @@ public record TrackedItemLot(
         return new TrackedItemLot(
                 lotId, createdAt, firstSeenAt, newLastSeenAt,
                 contentKey, providerId, material, fingerprint,
-                initialAmount, currentAmount, trackingReason, createdBySubject
+                initialAmount, currentAmount, trackingReason, createdBySubject,
+                ownerType, ownerStableId, ownerDisplaySnapshot
         );
     }
 
@@ -54,7 +61,17 @@ public record TrackedItemLot(
         return new TrackedItemLot(
                 lotId, createdAt, firstSeenAt, lastSeenAt,
                 contentKey, providerId, material, fingerprint,
-                initialAmount, Math.max(0, newAmount), trackingReason, createdBySubject
+                initialAmount, Math.max(0, newAmount), trackingReason, createdBySubject,
+                ownerType, ownerStableId, ownerDisplaySnapshot
+        );
+    }
+
+    public TrackedItemLot withOwnerDisplaySnapshot(String displayName) {
+        return new TrackedItemLot(
+                lotId, createdAt, firstSeenAt, lastSeenAt,
+                contentKey, providerId, material, fingerprint,
+                initialAmount, currentAmount, trackingReason, createdBySubject,
+                ownerType, ownerStableId, displayName == null ? "" : displayName.strip()
         );
     }
 }
