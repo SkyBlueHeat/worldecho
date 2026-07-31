@@ -202,7 +202,31 @@ public final class PlayerInventoryReconciler {
             try {
                 SlotProcessResult result;
                 if (slot.isUnique()) {
-                    result = identityService.processUniqueSlot(slot, playerUuid, playerDisplayName, cycle);
+                    // Check for duplicate UNIQUE identity BEFORE processing
+                    if (slot.existingUniqueId() != null) {
+                        String contentFingerprint = slot.material() + ":" + slot.amount();
+                        DuplicateObservationRegistry.Observation observation =
+                                new DuplicateObservationRegistry.Observation(
+                                        slot.existingUniqueId(),
+                                        playerUuid,
+                                        slot.inventorySection(),
+                                        slot.slotIndex(),
+                                        contentFingerprint,
+                                        cycle.cycleSequence(),
+                                        System.currentTimeMillis()
+                                );
+                        DuplicateObservationRegistry.DuplicateDiagnostic diagnostic =
+                                duplicateRegistry.observe(observation);
+                        if (diagnostic != null) {
+                            metrics.recordDuplicateIdentity();
+                            // Skip ownership transition to prevent ping-pong
+                            result = SlotProcessResult.skipped(slot);
+                        } else {
+                            result = identityService.processUniqueSlot(slot, playerUuid, playerDisplayName, cycle);
+                        }
+                    } else {
+                        result = identityService.processUniqueSlot(slot, playerUuid, playerDisplayName, cycle);
+                    }
                 } else if (slot.isLot()) {
                     result = identityService.processLotSlot(slot, playerUuid, playerDisplayName, cycle);
                     if (result.status() == SlotProcessResult.Status.PROCESSED
@@ -217,25 +241,6 @@ public final class PlayerInventoryReconciler {
                     metrics.recordIdentityWarning();
                 } else if (result.status() == SlotProcessResult.Status.PERSISTENCE_FAILURE) {
                     metrics.recordIdentityWarning();
-                }
-
-                if (slot.existingUniqueId() != null && slot.isUnique()) {
-                    String contentFingerprint = slot.material() + ":" + slot.amount();
-                    DuplicateObservationRegistry.Observation observation =
-                            new DuplicateObservationRegistry.Observation(
-                                    slot.existingUniqueId(),
-                                    playerUuid,
-                                    slot.inventorySection(),
-                                    slot.slotIndex(),
-                                    contentFingerprint,
-                                    cycle.cycleSequence(),
-                                    System.currentTimeMillis()
-                            );
-                    DuplicateObservationRegistry.DuplicateDiagnostic diagnostic =
-                            duplicateRegistry.observe(observation);
-                    if (diagnostic != null) {
-                        metrics.recordDuplicateIdentity();
-                    }
                 }
 
                 if (result.optionalOwnershipResult().isPresent()) {

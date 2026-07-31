@@ -134,6 +134,7 @@ class SchemaMigratorTest {
         assertTrue(tables.contains("lot_lineage"));
         assertTrue(tables.contains("item_lot_ownership_ledger"));
         assertTrue(indexes.contains("idx_tracked_lots_fingerprint"));
+        assertTrue(indexes.contains("idx_tracked_lots_fingerprint_owner"));
         assertTrue(indexes.contains("idx_tracked_lots_content_key"));
         assertTrue(indexes.contains("idx_lot_lineage_lot_id"));
         assertTrue(indexes.contains("idx_lot_lineage_related_lot"));

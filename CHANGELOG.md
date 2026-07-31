@@ -189,6 +189,28 @@
 ### Known limitations (0.3.1-SNAPSHOT)
 
 - Transformation identity continuity covers anvil, smithing table, and grindstone;
-  crafting table and stonecutter are not yet covered
+  crafting table and stonecutter produce items with new identities
 - Duplicate observation detection is in-memory only and per-session
-- Lot amount tracking is approximate during concurrent inventory modifications
+- LOT items do not receive PDC metadata; lot identity is owner-scoped (fingerprint + player UUID).
+  Physical split/merge lineage is not tracked by automatic tracking.
+- Lot amount reflects the latest observed stack size for a single slot, not a guaranteed
+  total across all inventory slots. Concurrent inventory modifications may produce stale
+  amounts until the next reconciliation cycle.
+- Headless Paper 26.2 verification (schema migration, status, reload, shutdown) not performed
+
+### Gap fix 2 (0.3.1-SNAPSHOT)
+
+- LOT identity model clarified to owner-scoped aggregate commodity (Model A):
+  `findByFingerprintAndOwner` replaces global `findByFingerprint` in automatic tracking.
+  Different players with the same fingerprint get separate lots. No PDC on LOT items.
+- `ReconciliationSchedulerState` extracted as pure-Java component: coalescing, shutdown
+  rejection, pending-state cleanup now unit-testable without Bukkit
+- `TransformationDecision` extracted as pure-Java component: inventory classification,
+  capture decisions, write decisions, feature gate now unit-testable without Bukkit
+- `ItemTransformationListener` refactored to delegate decisions to `TransformationDecision`
+- `PlayerInventoryReconciliationScheduler` refactored to delegate state to `ReconciliationSchedulerState`
+- Duplicate ID detection moved BEFORE ownership transition to prevent ping-pong
+- New composite index `idx_tracked_lots_fingerprint_owner` for owner-scoped lot lookup
+- New tests: `ReconciliationSchedulerStateTest` (9), `TransformationDecisionTest` (22),
+  `AutomaticItemIdentityServiceTest` +7 (owner-scoped, restart-safe, no ping-pong, join plan),
+  `LotSplitMergeTest` +4 (owner-scoped lookup tests)

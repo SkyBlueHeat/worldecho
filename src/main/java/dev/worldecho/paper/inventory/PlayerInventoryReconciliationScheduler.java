@@ -3,14 +3,13 @@ package dev.worldecho.paper.inventory;
 import dev.worldecho.config.WorldEchoSettings;
 import dev.worldecho.domain.item.ObservedInventorySnapshot;
 import dev.worldecho.domain.item.ReconciliationMetrics;
+import dev.worldecho.domain.item.ReconciliationSchedulerState;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.scheduler.BukkitTask;
 
-import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.function.Supplier;
 
@@ -18,6 +17,9 @@ import java.util.function.Supplier;
  * Coalesces multiple inventory events for the same player into one next-tick reconciliation.
  *
  * <p>One pending reconciliation per player.  No every-tick scanner.  No unbounded task creation.
+ *
+ * <p>Delegates pending-state and shutdown logic to {@link ReconciliationSchedulerState}
+ * so that coalescing and shutdown rejection are unit-testable without Bukkit.
  */
 public final class PlayerInventoryReconciliationScheduler {
 
@@ -26,8 +28,7 @@ public final class PlayerInventoryReconciliationScheduler {
     private final PlayerInventoryReconciler reconciler;
     private final Executor asyncExecutor;
     private final ReconciliationMetrics metrics;
-    private final Set<UUID> pendingPlayers = ConcurrentHashMap.newKeySet();
-    private volatile boolean shutdown = false;
+    private final ReconciliationSchedulerState state;
 
     public PlayerInventoryReconciliationScheduler(
             Plugin plugin,
@@ -36,11 +37,23 @@ public final class PlayerInventoryReconciliationScheduler {
             Executor asyncExecutor,
             ReconciliationMetrics metrics
     ) {
+        this(plugin, settingsSupplier, reconciler, asyncExecutor, metrics, new ReconciliationSchedulerState());
+    }
+
+    public PlayerInventoryReconciliationScheduler(
+            Plugin plugin,
+            Supplier<WorldEchoSettings> settingsSupplier,
+            PlayerInventoryReconciler reconciler,
+            Executor asyncExecutor,
+            ReconciliationMetrics metrics,
+            ReconciliationSchedulerState state
+    ) {
         this.plugin = plugin;
         this.settingsSupplier = settingsSupplier;
         this.reconciler = reconciler;
         this.asyncExecutor = asyncExecutor;
         this.metrics = metrics;
+        this.state = state;
     }
 
     /**
@@ -48,20 +61,18 @@ public final class PlayerInventoryReconciliationScheduler {
      * Multiple calls for the same player in the same tick coalesce into one.
      */
     public void scheduleReconciliation(UUID playerUuid, String triggerReason) {
-        if (shutdown) {
+        if (!state.trySchedule(playerUuid)) {
             return;
         }
         WorldEchoSettings settings = settingsSupplier.get();
         if (!settings.automaticTrackingEnabled() || !settings.automaticTrackingPlayerInventories()) {
-            return;
-        }
-        if (!pendingPlayers.add(playerUuid)) {
+            state.clear(playerUuid);
             return;
         }
         metrics.incrementPending();
 
         BukkitTask task = Bukkit.getScheduler().runTask(plugin, () -> {
-            pendingPlayers.remove(playerUuid);
+            state.clear(playerUuid);
             metrics.decrementPending();
 
             Player player = Bukkit.getPlayer(playerUuid);
@@ -80,7 +91,7 @@ public final class PlayerInventoryReconciliationScheduler {
      * Used on plugin enable.
      */
     public void scheduleForAllOnline(String triggerReason) {
-        if (shutdown) {
+        if (state.isShutdown()) {
             return;
         }
         for (Player player : Bukkit.getOnlinePlayers()) {
@@ -89,15 +100,18 @@ public final class PlayerInventoryReconciliationScheduler {
     }
 
     public void shutdown() {
-        shutdown = true;
-        pendingPlayers.clear();
+        state.shutdown();
     }
 
     public int pendingCount() {
-        return pendingPlayers.size();
+        return state.pendingCount();
     }
 
     public boolean isPending(UUID playerUuid) {
-        return pendingPlayers.contains(playerUuid);
+        return state.isPending(playerUuid);
+    }
+
+    ReconciliationSchedulerState state() {
+        return state;
     }
 }

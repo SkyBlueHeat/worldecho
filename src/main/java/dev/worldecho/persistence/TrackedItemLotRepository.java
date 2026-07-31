@@ -22,6 +22,9 @@ public interface TrackedItemLotRepository {
 
     Optional<TrackedItemLot> findByFingerprint(LotCompatibilityFingerprint fingerprint) throws SQLException;
 
+    Optional<TrackedItemLot> findByFingerprintAndOwner(
+            LotCompatibilityFingerprint fingerprint, String ownerSubject) throws SQLException;
+
     boolean exists(TrackedItemLotId lotId) throws SQLException;
 
     void updateAmount(TrackedItemLotId lotId, int newAmount) throws SQLException;

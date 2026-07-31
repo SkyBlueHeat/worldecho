@@ -10,7 +10,7 @@ This sprint introduces a complete automatic item identity and ownership synchron
 
 - **Identity classification**: Items are classified as `UNIQUE` (one-of-a-kind, tracked individually) or `LOT` (stackable, tracked as a lot) using a pure-Java policy engine.
 - **Automatic PDC assignment**: UNIQUE items get a WorldEcho UUID written to their Persistent Data Container on first observation.
-- **Lot fingerprinting**: LOT items are grouped by a deterministic `LotCompatibilityFingerprint` that normalizes material, damage, enchantments, and provider.
+- **Owner-scoped lot aggregation (Model A)**: LOT items are grouped per-player by a deterministic `LotCompatibilityFingerprint` (material, damage, enchantments, provider). Each player gets their own lot aggregate for the same fingerprint. No PDC metadata is written to LOT items. Lot amount reflects the latest observed stack size, not a guaranteed total across slots.
 - **Ownership reconciliation**: Every reconciliation cycle records ownership transitions idempotently, using deterministic cycle-scoped keys.
 - **Coalescing scheduler**: Multiple inventory events in the same tick coalesce into a single next-tick reconciliation — no every-tick scanner, no unbounded task creation.
 - **Event-driven**: Join, respawn, inventory click/drag, pickup, death, drop, world change, crafting, furnace extract, offhand swap, and fishing events trigger reconciliation. Creative inventory actions and merchant trades are covered by InventoryClickEvent. Hotbar number-key swaps are covered by InventoryClickEvent with HOTBAR_SWAP action.
@@ -29,8 +29,8 @@ This sprint introduces a complete automatic item identity and ownership synchron
 | `LotCompatibilityFingerprint` | `domain.item` | Deterministic lot compatibility key |
 | `TrackedItemLotId` | `domain.item` | UUID-based lot identifier |
 | `TrackedItemLot` | `domain.item` | Persistent lot record |
-| `LotRelationType` | `domain.item` | Enum: `SPLIT_FROM`, `MERGED_INTO` |
-| `LotLineageEntry` | `domain.item` | Lineage record for lot splits/merges |
+| `LotRelationType` | `domain.item` | Enum: `SPLIT_FROM`, `MERGED_INTO` (persistence schema only; not populated by automatic tracking) |
+| `LotLineageEntry` | `domain.item` | Lineage record for lot splits/merges (persistence schema only; not populated by automatic tracking) |
 | `LotOwnershipLedgerEntry` | `domain.item` | Append-only lot ownership ledger entry |
 | `LotOwnershipState` | `domain.item` | Current ownership projection for a lot |
 | `LotOwnershipTransitionService` | `domain.item` | Validates and records lot ownership transitions |
@@ -41,6 +41,8 @@ This sprint introduces a complete automatic item identity and ownership synchron
 | `SlotProcessResult` | `domain.item` | Result of processing a single slot |
 | `ReconciliationMetrics` | `domain.item` | Thread-safe metrics counters |
 | `DuplicateObservationRegistry` | `domain.item` | Bounded in-memory duplicate detection |
+| `ReconciliationSchedulerState` | `domain.item` | Pure-Java pending-player coalescing state |
+| `TransformationDecision` | `domain.item` | Pure-Java transformation identity continuity decision logic |
 
 ## New persistence types
 
@@ -59,7 +61,7 @@ Adds three new tables with indexes:
 - `lot_lineage` — split/merge lineage with idempotency keys
 - `item_lot_ownership_ledger` — append-only lot ownership transitions with sequence numbers
 
-Indexes: `idx_tracked_lots_fingerprint`, `idx_tracked_lots_content_key`, `idx_lot_lineage_lot_id`, `idx_lot_lineage_related_lot`, `idx_lot_ledger_lot_seq_desc`, `idx_lot_ledger_new_subject`
+Indexes: `idx_tracked_lots_fingerprint`, `idx_tracked_lots_fingerprint_owner`, `idx_tracked_lots_content_key`, `idx_lot_lineage_lot_id`, `idx_lot_lineage_related_lot`, `idx_lot_ledger_lot_seq_desc`, `idx_lot_ledger_new_subject`
 
 ## New Paper-layer types
 
@@ -68,7 +70,7 @@ Indexes: `idx_tracked_lots_fingerprint`, `idx_tracked_lots_content_key`, `idx_lo
 | `PlayerInventoryReconciler` | Captures immutable snapshots on main thread, processes asynchronously |
 | `PlayerInventoryReconciliationScheduler` | Coalesces events per-player into next-tick tasks |
 | `PlayerInventoryObservationListener` | Listens for join, respawn, click, drag, pickup, death, drop, world change, crafting, furnace extract, offhand swap, fishing |
-| `ItemTransformationListener` | Preserves UNIQUE identity across anvil, smithing, grindstone transformations |
+| `ItemTransformationListener` | Preserves UNIQUE identity across anvil, smithing, grindstone transformations (delegates decisions to `TransformationDecision`) |
 
 ## Configuration
 
@@ -132,11 +134,13 @@ On shutdown, the scheduler rejects new reconciliation requests, cancels pending 
 
 ## Tests
 
-- 283 tests total, 0 failures
-- New tests: `ItemIdentityPolicyTest` (14), `LotCompatibilityFingerprintTest` (7), `ReconciliationCycleTest` (4), `ReconciliationMetricsTest` (4), `DuplicateObservationRegistryTest` (5), `TrackedItemLotRepositoryTest` (8), `AutomaticItemIdentityServiceTest` (10), `LotSplitMergeTest` (9), `SchemaMigratorTest` +1 v3 test, `BundledResourcesTest` +18 new message key checks
+- Test count: see build output for exact count
+- New tests: `ItemIdentityPolicyTest` (14), `LotCompatibilityFingerprintTest` (7), `ReconciliationCycleTest` (4), `ReconciliationMetricsTest` (4), `DuplicateObservationRegistryTest` (5), `ReconciliationSchedulerStateTest` (9), `TransformationDecisionTest` (22), `TrackedItemLotRepositoryTest` (8), `AutomaticItemIdentityServiceTest` (17), `LotSplitMergeTest` (13), `SchemaMigratorTest` +1 v3 test, `BundledResourcesTest` +18 new message key checks
 
 ## Known limitations
 
 - Duplicate observation detection is in-memory only and per-session; it does not persist across restarts
-- Lot amount tracking is approximate during concurrent inventory modifications
-- Transformation identity continuity covers anvil, smithing table, and grindstone; other crafting mechanics (crafting table, stonecutter) are not yet covered
+- LOT items do not receive PDC metadata; lot identity is owner-scoped and resolved by fingerprint + player UUID at reconciliation time. Physical split/merge lineage is not tracked by automatic tracking.
+- Lot amount reflects the latest observed stack size for a single slot, not a guaranteed total across all inventory slots. Concurrent inventory modifications may produce stale amounts until the next reconciliation cycle.
+- Transformation identity continuity covers anvil, smithing table, and grindstone; other crafting mechanics (crafting table, stonecutter) produce items with new identities
+- Headless Paper 26.2 verification (schema migration, status, reload, shutdown) not performed — requires a running Paper server

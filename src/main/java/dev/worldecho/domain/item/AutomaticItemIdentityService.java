@@ -154,7 +154,8 @@ public final class AutomaticItemIdentityService {
                     .build();
         }
 
-        Optional<TrackedItemLot> existing = lotRepository.findByFingerprint(fingerprint);
+        String ownerSubject = OwnershipSubject.player(playerUuid, playerDisplayName).describe();
+        Optional<TrackedItemLot> existing = lotRepository.findByFingerprintAndOwner(fingerprint, ownerSubject);
         if (existing.isPresent()) {
             TrackedItemLot lot = existing.get();
             lotRepository.observe(lot.lotId(), Instant.now(clock));
@@ -173,7 +174,7 @@ public final class AutomaticItemIdentityService {
                 slot.amount(),
                 slot.amount(),
                 "AUTOMATIC",
-                OwnershipSubject.player(playerUuid, playerDisplayName).describe()
+                ownerSubject
         );
         lotRepository.create(lot);
         return newLotId;

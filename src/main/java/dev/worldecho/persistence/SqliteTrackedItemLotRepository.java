@@ -74,6 +74,21 @@ public final class SqliteTrackedItemLotRepository implements TrackedItemLotRepos
     }
 
     @Override
+    public Optional<TrackedItemLot> findByFingerprintAndOwner(
+            LotCompatibilityFingerprint fingerprint, String ownerSubject) throws SQLException {
+        try (Connection connection = databaseManager.openConnection();
+             PreparedStatement statement = connection.prepareStatement(
+                     "SELECT * FROM tracked_item_lots WHERE fingerprint = ? AND created_by_subject = ? "
+                             + "ORDER BY last_seen_at DESC LIMIT 1")) {
+            statement.setString(1, fingerprint.serialize());
+            statement.setString(2, ownerSubject);
+            try (ResultSet rs = statement.executeQuery()) {
+                return rs.next() ? Optional.of(mapRow(rs)) : Optional.empty();
+            }
+        }
+    }
+
+    @Override
     public boolean exists(TrackedItemLotId lotId) throws SQLException {
         try (Connection connection = databaseManager.openConnection();
              PreparedStatement statement = connection.prepareStatement(

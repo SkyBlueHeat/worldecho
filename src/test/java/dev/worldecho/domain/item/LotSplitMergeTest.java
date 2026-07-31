@@ -244,4 +244,59 @@ class LotSplitMergeTest {
         assertTrue(!cobbleFp.equals(dirtFp),
                 "Different materials should produce different fingerprints");
     }
+
+    @Test
+    void differentPlayersWithSameFingerprintGetDifferentLots() throws Exception {
+        UUID ownerA = UUID.randomUUID();
+        UUID ownerB = UUID.randomUUID();
+        LotCompatibilityFingerprint fp = LotCompatibilityFingerprint.builder()
+                .providerId("minecraft")
+                .material("minecraft:cobblestone")
+                .build();
+
+        TrackedItemLotId lotA = createLot("minecraft:cobblestone", 32, ownerA);
+        TrackedItemLotId lotB = createLot("minecraft:cobblestone", 32, ownerB);
+
+        String subjectA = OwnershipSubject.player(ownerA, "PlayerA").describe();
+        String subjectB = OwnershipSubject.player(ownerB, "PlayerB").describe();
+
+        Optional<TrackedItemLot> foundA = lotRepo.findByFingerprintAndOwner(fp, subjectA);
+        Optional<TrackedItemLot> foundB = lotRepo.findByFingerprintAndOwner(fp, subjectB);
+
+        assertTrue(foundA.isPresent(), "Should find lot for player A");
+        assertTrue(foundB.isPresent(), "Should find lot for player B");
+        assertEquals(lotA, foundA.get().lotId(), "Should find correct lot for player A");
+        assertEquals(lotB, foundB.get().lotId(), "Should find correct lot for player B");
+    }
+
+    @Test
+    void samePlayerWithSameFingerprintReusesLot() throws Exception {
+        UUID owner = UUID.randomUUID();
+        LotCompatibilityFingerprint fp = LotCompatibilityFingerprint.builder()
+                .providerId("minecraft")
+                .material("minecraft:cobblestone")
+                .build();
+
+        TrackedItemLotId lotId = createLot("minecraft:cobblestone", 32, owner);
+        String subject = OwnershipSubject.player(owner, "TestPlayer").describe();
+
+        Optional<TrackedItemLot> found = lotRepo.findByFingerprintAndOwner(fp, subject);
+        assertTrue(found.isPresent());
+        assertEquals(lotId, found.get().lotId());
+    }
+
+    @Test
+    void findByFingerprintAndOwnerReturnsEmptyForUnknownOwner() throws Exception {
+        UUID owner = UUID.randomUUID();
+        createLot("minecraft:cobblestone", 32, owner);
+
+        LotCompatibilityFingerprint fp = LotCompatibilityFingerprint.builder()
+                .providerId("minecraft")
+                .material("minecraft:cobblestone")
+                .build();
+        String unknownSubject = OwnershipSubject.player(UUID.randomUUID(), "Unknown").describe();
+
+        Optional<TrackedItemLot> found = lotRepo.findByFingerprintAndOwner(fp, unknownSubject);
+        assertTrue(found.isEmpty(), "Should not find lot for unknown owner");
+    }
 }

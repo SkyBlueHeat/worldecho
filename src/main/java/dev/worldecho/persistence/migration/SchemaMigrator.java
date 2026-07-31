@@ -127,6 +127,10 @@ public final class SchemaMigrator {
                     ON tracked_item_lots(fingerprint)
                     """,
                     """
+                    CREATE INDEX IF NOT EXISTS idx_tracked_lots_fingerprint_owner
+                    ON tracked_item_lots(fingerprint, created_by_subject)
+                    """,
+                    """
                     CREATE INDEX IF NOT EXISTS idx_tracked_lots_content_key
                     ON tracked_item_lots(content_key)
                     """,

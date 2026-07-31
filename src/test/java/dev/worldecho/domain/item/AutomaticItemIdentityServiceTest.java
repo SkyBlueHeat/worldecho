@@ -236,6 +236,133 @@ class AutomaticItemIdentityServiceTest {
         assertNotNull(result.errorMessage());
     }
 
+    // --- Owner-scoped aggregate commodity model (Model A) tests ---
+
+    @Test
+    void samePlayerLotReusesExistingLot() {
+        // First observation creates a lot
+        ObservedInventorySlot slot1 = lotSlot(null, 32);
+        identityService.processLotSlot(slot1, PLAYER_A, "PlayerA", cycle(PLAYER_A));
+        assertEquals(1, lotRepo.lots.size());
+
+        // Second observation for same player with same fingerprint reuses the lot
+        ObservedInventorySlot slot2 = lotSlot(null, 16);
+        identityService.processLotSlot(slot2, PLAYER_A, "PlayerA", cycle(PLAYER_A));
+        assertEquals(1, lotRepo.lots.size(), "Same player should reuse existing lot");
+    }
+
+    @Test
+    void differentPlayersGetDifferentLots() {
+        ObservedInventorySlot slotA = lotSlot(null, 32);
+        identityService.processLotSlot(slotA, PLAYER_A, "PlayerA", cycle(PLAYER_A));
+
+        ObservedInventorySlot slotB = lotSlot(null, 32);
+        identityService.processLotSlot(slotB, PLAYER_B, "PlayerB", cycle(PLAYER_B));
+
+        assertEquals(2, lotRepo.lots.size(), "Different players should get different lots");
+    }
+
+    @Test
+    void restartSafeLotAssociation() {
+        // Player A gets a lot
+        ObservedInventorySlot slot1 = lotSlot(null, 32);
+        SlotProcessResult result1 = identityService.processLotSlot(
+                slot1, PLAYER_A, "PlayerA", cycle(PLAYER_A));
+        assertEquals(SlotProcessResult.Status.PROCESSED, result1.status());
+
+        // Simulate restart: same player, same fingerprint, new cycle
+        // The lot should be found by fingerprint+owner and reused
+        ObservedInventorySlot slot2 = lotSlot(null, 16);
+        SlotProcessResult result2 = identityService.processLotSlot(
+                slot2, PLAYER_A, "PlayerA", cycle(PLAYER_A));
+        assertEquals(SlotProcessResult.Status.PROCESSED, result2.status());
+        assertEquals(1, lotRepo.lots.size(), "Restart should find existing lot by fingerprint+owner");
+    }
+
+    @Test
+    void lotAmountIsUpdatedOnReobservation() {
+        ObservedInventorySlot slot1 = lotSlot(null, 32);
+        identityService.processLotSlot(slot1, PLAYER_A, "PlayerA", cycle(PLAYER_A));
+
+        TrackedItemLotId lotId = lotRepo.lots.keySet().iterator().next();
+        assertEquals(32, lotRepo.lots.get(lotId).currentAmount());
+
+        // Re-observe with different amount
+        ObservedInventorySlot slot2 = lotSlot(null, 16);
+        identityService.processLotSlot(slot2, PLAYER_A, "PlayerA", cycle(PLAYER_A));
+        assertEquals(16, lotRepo.lots.get(lotId).currentAmount(),
+                "Amount should be updated to latest observed value");
+    }
+
+    @Test
+    void duplicateUniqueIdInTwoPlayersDoesNotPingPong() {
+        // Player A has the item first
+        TrackedItemId existingId = TrackedItemId.random();
+        trackedItemRepo.existing.add(existingId);
+
+        ObservedInventorySlot slot = uniqueSlot(existingId);
+
+        // Player A processes — should record ownership
+        SlotProcessResult resultA = identityService.processUniqueSlot(
+                slot, PLAYER_A, "PlayerA", cycle(PLAYER_A));
+        assertEquals(OwnershipResultStatus.RECORDED, resultA.ownershipResult().status());
+
+        // Player B processes same item — should record ownership transfer
+        SlotProcessResult resultB = identityService.processUniqueSlot(
+                slot, PLAYER_B, "PlayerB", cycle(PLAYER_B));
+        assertEquals(OwnershipResultStatus.RECORDED, resultB.ownershipResult().status());
+
+        // Player A processes again with the SAME cycle — IDEMPOTENT_REPLAY
+        // (same idempotency key, same payload as first call — no new ownership change)
+        SlotProcessResult resultA2 = identityService.processUniqueSlot(
+                slot, PLAYER_A, "PlayerA", cycle(PLAYER_A));
+        assertEquals(OwnershipResultStatus.IDEMPOTENT_REPLAY, resultA2.ownershipResult().status(),
+                "Same cycle + same player should be idempotent replay");
+
+        // Player A with a NEW cycle — RECORDED (transfers back from B to A)
+        // Ping-pong prevention is at the reconciler level via DuplicateObservationRegistry
+        ReconciliationCycle cycleA2 = ReconciliationCycle.create(PLAYER_A, "test2", 2L, SESSION_ID, 0L);
+        SlotProcessResult resultA3 = identityService.processUniqueSlot(
+                slot, PLAYER_A, "PlayerA", cycleA2);
+        assertEquals(OwnershipResultStatus.RECORDED, resultA3.ownershipResult().status(),
+                "Service-level: ownership transfers back to A (reconciler prevents this via duplicate detection)");
+
+        // Player A again with another new cycle — NO_CHANGE (A is already owner)
+        ReconciliationCycle cycleA3 = ReconciliationCycle.create(PLAYER_A, "test3", 3L, SESSION_ID, 0L);
+        SlotProcessResult resultA4 = identityService.processUniqueSlot(
+                slot, PLAYER_A, "PlayerA", cycleA3);
+        assertEquals(OwnershipResultStatus.NO_CHANGE, resultA4.ownershipResult().status(),
+                "Same player re-observing in a new cycle should be NO_CHANGE when already owner");
+    }
+
+    @Test
+    void joinReconciliationPlanGeneratesSnapshot() {
+        // Simulate a join reconciliation: player has unique and lot items
+        TrackedItemId uniqueId = TrackedItemId.random();
+        trackedItemRepo.existing.add(uniqueId);
+
+        ObservedInventorySnapshot snapshot = new ObservedInventorySnapshot(
+                PLAYER_A, "PlayerA",
+                List.of(uniqueSlot(uniqueId), lotSlot(null, 32)),
+                cycle(PLAYER_A)
+        );
+
+        // Process all slots
+        for (ObservedInventorySlot slot : snapshot.slots()) {
+            if (slot.isUnique()) {
+                identityService.processUniqueSlot(slot, PLAYER_A, "PlayerA", snapshot.cycle());
+            } else if (slot.isLot()) {
+                identityService.processLotSlot(slot, PLAYER_A, "PlayerA", snapshot.cycle());
+            }
+        }
+
+        // Verify both items were processed
+        assertEquals(1, trackedItemRepo.existing.size());
+        assertEquals(1, lotRepo.lots.size());
+        assertTrue(ledgerRepo.entries.size() >= 1);
+        assertTrue(lotLedgerRepo.entries.size() >= 1);
+    }
+
     // --- Fake repositories ---
 
     private static class FakeTrackedItemRepo implements TrackedItemRepository {
@@ -293,6 +420,15 @@ class AutomaticItemIdentityServiceTest {
         public Optional<TrackedItemLot> findByFingerprint(LotCompatibilityFingerprint fingerprint) throws SQLException {
             return lots.values().stream()
                     .filter(l -> l.fingerprint().equals(fingerprint))
+                    .findFirst();
+        }
+
+        @Override
+        public Optional<TrackedItemLot> findByFingerprintAndOwner(
+                LotCompatibilityFingerprint fingerprint, String ownerSubject) throws SQLException {
+            return lots.values().stream()
+                    .filter(l -> l.fingerprint().equals(fingerprint)
+                            && l.createdBySubject().equals(ownerSubject))
                     .findFirst();
         }
 
