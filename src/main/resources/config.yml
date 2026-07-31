@@ -87,5 +87,7 @@ items:
     reconcile-on-respawn: true
     # Reconcile inventory after inventory events (click, drag, pickup, etc.).
     reconcile-after-inventory-events: true
+    # Preserve WorldEcho identity across anvil, smithing table, and grindstone transformations.
+    transform-identity-continuity: true
     # Show debug messages for automatic tracking (admin only, console only).
     debug-messages: false

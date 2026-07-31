@@ -21,6 +21,7 @@ import dev.worldecho.paper.inventory.PlayerInventoryReconciliationScheduler;
 import dev.worldecho.paper.item.ItemIdentityAdapter;
 import dev.worldecho.paper.listener.PlayerDeathMemoryListener;
 import dev.worldecho.paper.listener.PlayerInventoryObservationListener;
+import dev.worldecho.paper.listener.ItemTransformationListener;
 import dev.worldecho.paper.message.PaperMessageService;
 import dev.worldecho.domain.item.AutomaticItemIdentityService;
 import dev.worldecho.domain.item.LotOwnershipTransitionService;
@@ -180,6 +181,14 @@ public final class WorldEchoPlugin extends JavaPlugin {
                 new PlayerInventoryObservationListener(
                         () -> settings,
                         reconciliationScheduler
+                ),
+                this
+        );
+
+        getServer().getPluginManager().registerEvents(
+                new ItemTransformationListener(
+                        () -> settings,
+                        itemIdentityAdapter
                 ),
                 this
         );

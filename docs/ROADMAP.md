@@ -30,6 +30,7 @@
 - ✅ coalescing inventory reconciliation scheduler (Sprint 0.3B)
 - ✅ event-driven reconciliation (join, respawn, click, drag, pickup, death) (Sprint 0.3B)
 - ✅ duplicate observation detection (Sprint 0.3B)
+- ✅ transformation identity continuity: anvil, smithing, grindstone (Sprint 0.3B)
 - generated named rival
 - delayed rumor
 - recovery after restart

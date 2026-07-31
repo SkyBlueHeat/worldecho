@@ -99,6 +99,25 @@ public final class ItemIdentityAdapter {
         return new IdentityResult(IdentityStatus.ASSIGNED, newId);
     }
 
+    /**
+     * Writes an existing tracked-item ID onto an item's PDC.
+     * Used for transformation identity continuity (anvil, smithing, grindstone).
+     *
+     * @return true if the identity was written, false if the item is unsupported
+     */
+    public boolean writeIdentity(ItemStack item, TrackedItemId id) {
+        if (item == null || item.getType().isAir() || id == null) {
+            return false;
+        }
+        ItemMeta meta = item.getItemMeta();
+        if (meta == null) {
+            return false;
+        }
+        meta.getPersistentDataContainer().set(key, PersistentDataType.STRING, id.toString());
+        item.setItemMeta(meta);
+        return true;
+    }
+
     private void assignIdentity(ItemStack item, TrackedItemId id) {
         ItemMeta meta = item.getItemMeta();
         if (meta == null) {

@@ -152,6 +152,9 @@
 - `PlayerInventoryReconciliationScheduler`: coalesces multiple inventory events per
   player into a single next-tick reconciliation — no every-tick scanner
 - Event listeners: join, respawn, inventory click, inventory drag, pickup, death
+- Transformation identity continuity: anvil, smithing table, grindstone preserve
+  source item's WorldEcho UUID on the result item via `ItemTransformationListener`
+- `ItemIdentityAdapter.writeIdentity` for copying existing IDs to result items
 - `ReconciliationCycle`: deterministic cycle IDs with idempotency keys per item/lot
 - `ReconciliationMetrics`: thread-safe counters for status reporting
 - `DuplicateObservationRegistry`: bounded in-memory duplicate UNIQUE detection
@@ -170,7 +173,7 @@
 
 ### Known limitations (0.3.1-SNAPSHOT)
 
-- Transformation identity continuity (anvil, smithing, grindstone) is not yet
-  implemented — transformed items receive new identities
+- Transformation identity continuity covers anvil, smithing table, and grindstone;
+  crafting table and stonecutter are not yet covered
 - Duplicate observation detection is in-memory only and per-session
 - Lot amount tracking is approximate during concurrent inventory modifications

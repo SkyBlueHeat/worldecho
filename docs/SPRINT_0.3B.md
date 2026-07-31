@@ -14,6 +14,7 @@ This sprint introduces a complete automatic item identity and ownership synchron
 - **Ownership reconciliation**: Every reconciliation cycle records ownership transitions idempotently, using deterministic cycle-scoped keys.
 - **Coalescing scheduler**: Multiple inventory events in the same tick coalesce into a single next-tick reconciliation — no every-tick scanner, no unbounded task creation.
 - **Event-driven**: Join, respawn, inventory click/drag, pickup, and death events trigger reconciliation.
+- **Transformation identity continuity**: Anvil, smithing table, and grindstone transformations preserve the source item's WorldEcho UUID on the result item.
 - **Silent operation**: No chat spam for normal players. Metrics are visible via `/worldecho status`.
 - **Admin commands**: `/worldecho item reconcile [player]` and `/worldecho item policy` for manual control and diagnostics.
 
@@ -115,6 +116,6 @@ items:
 
 ## Known limitations
 
-- Transformation identity continuity (anvil, smithing, grindstone) is not yet implemented — items transformed through these mechanics will get new identities
 - Duplicate observation detection is in-memory only and per-session; it does not persist across restarts
 - Lot amount tracking is approximate during concurrent inventory modifications
+- Transformation identity continuity covers anvil, smithing table, and grindstone; other crafting mechanics (crafting table, stonecutter) are not yet covered

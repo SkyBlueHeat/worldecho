@@ -53,6 +53,7 @@ public final class SettingsLoader {
                 bool(source, warnings, "items.automatic-tracking.reconcile-on-join", true),
                 bool(source, warnings, "items.automatic-tracking.reconcile-on-respawn", true),
                 bool(source, warnings, "items.automatic-tracking.reconcile-after-inventory-events", true),
+                bool(source, warnings, "items.automatic-tracking.transform-identity-continuity", true),
                 bool(source, warnings, "items.automatic-tracking.debug-messages", false)
         );
 

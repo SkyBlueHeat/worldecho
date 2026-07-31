@@ -29,6 +29,7 @@ public record WorldEchoSettings(
         boolean automaticTrackingReconcileOnJoin,
         boolean automaticTrackingReconcileOnRespawn,
         boolean automaticTrackingReconcileAfterInventoryEvents,
+        boolean automaticTrackingTransformIdentityContinuity,
         boolean automaticTrackingDebugMessages
 ) {
 
