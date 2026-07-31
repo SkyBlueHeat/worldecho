@@ -146,6 +146,101 @@ No schema migration required. Physical observations use the existing
 
 **Total: 461 tests, 0 failures, 0 skipped.**
 
+## Paper command gate (headless server)
+
+Final JAR deployed to `C:\Users\erkay\Documents\WorldEcho-TestServer\plugins\`.
+Fresh database (deleted `worldecho.db` before start). Paper 26.2, Java 25, headless mode.
+
+### `worldecho status` (first run)
+
+```
+[WorldEcho] Memory kernel status
+[WorldEcho] version: 0.1.0-SNAPSHOT
+[WorldEcho] locale: en
+[WorldEcho] queue.pending: 0
+[WorldEcho] queue.written: 0
+[WorldEcho] queue.failed: 0
+[WorldEcho] queue.dropped: 0
+[WorldEcho] providers: entity:vanilla=AVAILABLE, item:vanilla=AVAILABLE
+[WorldEcho] bindings.entities: 3
+[WorldEcho] bindings.items: 2
+[WorldEcho] bindings.warnings: 0
+[WorldEcho] bindings.errors: 0
+[WorldEcho] bindings.schema-version: 1
+[WorldEcho] eligibility.profiles: 4
+[WorldEcho] eligibility.entity-profiles: 3
+[WorldEcho] eligibility.item-profiles: 1
+[WorldEcho] auto-tracking: enabled
+[WorldEcho] physical-tracking: enabled
+[WorldEcho] recon.count: 0
+[WorldEcho] recon.identities: 0
+[WorldEcho] recon.lots: 0
+[WorldEcho] recon.ownership: 0
+[WorldEcho] recon.warnings: 0
+[WorldEcho] recon.duplicates: 0
+[WorldEcho] recon.pending: 0
+[WorldEcho] phys.world-drops: 0
+[WorldEcho] phys.entity-items: 0
+[WorldEcho] phys.loaded-reconciles: 0
+[WorldEcho] phys.ownership-transitions: 0
+[WorldEcho] phys.warnings: 0
+[WorldEcho] phys.stale-rejected: 0
+[WorldEcho] phys.pending: 0
+[WorldEcho] phys.rejected: 0
+[WorldEcho] database: ok
+[WorldEcho] schema.version: 4
+[WorldEcho] events: 0
+[WorldEcho] tracked-items: 0
+[WorldEcho] ledger-entries: 0
+```
+
+### `worldecho reload`
+
+```
+[WorldEcho] Bindings: 3 entity, 2 item, 0 warning(s), 0 error(s)
+[WorldEcho] Configuration, messages, and bindings reloaded.
+[WorldEcho] Bindings: 3 entity, 2 item, 0 warning(s), 0 error(s)
+```
+
+### `worldecho status` (after reload)
+
+All metrics identical to first run. Physical tracking still enabled. Database OK. Schema version 4.
+
+### `worldecho item owner 00000000-0000-0000-0000-000000000001`
+
+```
+[WorldEcho] Current ownership for 00000000-0000-0000-0000-000000000001
+[WorldEcho] No ownership history recorded.
+```
+
+### `worldecho item history 00000000-0000-0000-0000-000000000001`
+
+```
+[WorldEcho] Ownership history for 00000000-0000-0000-0000-000000000001
+[WorldEcho] No ownership history recorded.
+```
+
+### `stop` (clean shutdown)
+
+```
+[WorldEcho] Disabling WorldEcho v0.1.0-SNAPSHOT
+[WorldEcho] Automatic tracking metrics: reconciliations=0 identities-assigned=0 lots-assigned=0 ownership-transitions=0 warnings=0 duplicates=0 world-drop-observations=0 entity-item-observations=0 loaded-entity-reconciliations=0 physical-ownership-transitions=0 physical-observation-warnings=0 stale-observations-rejected=0 pending-physical-observations=0 rejected-physical-observations=0
+[WorldEcho] Story write queue drained: 0 event(s) stored
+[WorldEcho] Physical observation queue drained: pending=0 submitted=0 rejected=0
+[WorldEcho] WorldEcho memory kernel disabled
+```
+
+### Verification summary
+
+- Physical tracking enabled: YES
+- All physical status metrics present: YES (8 metrics including `phys.rejected`)
+- Pending count zero: YES
+- Database OK: YES
+- Schema version 4: YES
+- Reload successful: YES
+- Unknown ID handled safely: YES (no errors, graceful "No ownership history recorded")
+- Clean shutdown: YES (physical observation queue drained, story write queue drained)
+
 ## Known limitations
 
 - Entity death handling logs a bounded warning for equipped UNIQUE items absent
