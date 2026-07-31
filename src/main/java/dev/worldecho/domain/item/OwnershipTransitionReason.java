@@ -23,6 +23,8 @@ public enum OwnershipTransitionReason {
     INVENTORY_RECONCILIATION,
     INVENTORY_TRANSFER,
     AUTOMATIC_TRACKING,
+    WORLD_DROP_OBSERVED,
+    DESPAWNED,
     UNKNOWN;
 
     public String token() {

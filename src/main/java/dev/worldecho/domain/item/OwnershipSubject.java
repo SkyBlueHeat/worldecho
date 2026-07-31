@@ -54,6 +54,16 @@ public record OwnershipSubject(
         return new OwnershipSubject(OwnershipSubjectType.WORLD_DROP, id, "");
     }
 
+    public static OwnershipSubject worldDrop(UUID itemEntityUuid) {
+        Objects.requireNonNull(itemEntityUuid, "itemEntityUuid");
+        return new OwnershipSubject(OwnershipSubjectType.WORLD_DROP, itemEntityUuid.toString(), "");
+    }
+
+    public static OwnershipSubject worldDrop(UUID itemEntityUuid, String displayName) {
+        Objects.requireNonNull(itemEntityUuid, "itemEntityUuid");
+        return new OwnershipSubject(OwnershipSubjectType.WORLD_DROP, itemEntityUuid.toString(), displayName);
+    }
+
     public static OwnershipSubject system(String token) {
         Objects.requireNonNull(token, "token");
         if (token.isBlank()) {

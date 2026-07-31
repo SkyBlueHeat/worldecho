@@ -30,7 +30,13 @@ public record WorldEchoSettings(
         boolean automaticTrackingReconcileOnRespawn,
         boolean automaticTrackingReconcileAfterInventoryEvents,
         boolean automaticTrackingTransformIdentityContinuity,
-        boolean automaticTrackingDebugMessages
+        boolean automaticTrackingDebugMessages,
+        boolean physicalTrackingEnabled,
+        boolean physicalTrackingWorldDrops,
+        boolean physicalTrackingEntityPickup,
+        boolean physicalTrackingReconcileLoadedEntities,
+        boolean physicalTrackingItemDespawn,
+        boolean physicalTrackingDebugMessages
 ) {
 
     public WorldEchoSettings {

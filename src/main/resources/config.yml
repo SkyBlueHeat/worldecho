@@ -91,3 +91,17 @@ items:
     transform-identity-continuity: true
     # Show debug messages for automatic tracking (admin only, console only).
     debug-messages: false
+  physical-tracking:
+    # Automatically track UNIQUE items as physical world drops and entity-held items.
+    # LOT commodities are not physically tracked outside player inventories.
+    enabled: true
+    # Observe UNIQUE items dropped as Item entities in the world.
+    world-drops: true
+    # Observe UNIQUE items picked up by non-player entities.
+    entity-pickup: true
+    # Reconcile loaded Item entities and entity equipment after chunk load or restart.
+    reconcile-loaded-entities: true
+    # Record terminal SYSTEM observation when a UNIQUE Item entity despawns.
+    item-despawn: true
+    # Show debug messages for physical tracking (admin only, console only).
+    debug-messages: false

@@ -33,17 +33,27 @@
 - ✅ duplicate observation detection
 - ✅ transformation identity continuity: anvil, smithing, grindstone
 
-## 0.3C — World Drops, Containers & Entity Ownership
+## 0.3C1 — UNIQUE World Drops & Entity Ownership ✅
 
-- persistent dropped Item entity registry
-- WORLD_DROP ownership tracking
-- ENTITY ownership for mob equipment
+- ✅ automatic physical ownership observations for UNIQUE items
+- ✅ PLAYER → WORLD_DROP transition on player drop
+- ✅ WORLD_DROP observation on generic Item entity spawn
+- ✅ WORLD_DROP → ENTITY transition on non-player entity pickup
+- ✅ terminal SYSTEM observation on Item entity despawn
+- ✅ loaded entity recovery (Item entities + entity equipment) on chunk load
+- ✅ physical observation registry with stale rejection and conflict detection
+- ✅ physical tracking metrics in `/worldecho status`
+- ✅ configuration: `items.physical-tracking.*` section
+
+## 0.3C2 — Containers, Hoppers & Container Aggregates
+
 - container ownership (chests, hoppers, barrels)
 - shulker box and bundle nested content tracking
-- hopper tracking
+- hopper transfer tracking
 - container crawling
+- container aggregate reconciliation
 
-## 0.3D — First Story — Stolen Item Carrier
+## 0.3D — First Story: Stolen Item Carrier
 
 - `stolen_item_carrier`
 - `stolen_relic_command_chain`

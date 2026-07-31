@@ -49,6 +49,12 @@ Requires JDK 25. The wrapper pins Gradle 9.6.1.
 | `SchemaMigratorTest` (v3+v4) | Lot tables and indexes created in v3 migration; v4 adds owner scope columns, backfills from `created_by_subject`, resolves duplicate legacy rows, creates UNIQUE index; v0/v1/v2 → latest; rerun idempotent |
 | `MigrationV4BackfillTest` | V3→V4 backfill: valid player subject, separator-safe UUID, malformed fallback, duplicate resolution, amount/timestamp/lotId/ledger preservation, idempotent rerun |
 | `ReconcileOwnerAggregatesTest` | Atomic reconcile: create new lot, update amount, zero absent fingerprints, no double-zero, idempotent repeat, display snapshot update, no ambiguous duplicates, multi-fingerprint atomic, empty map zeros all |
+| `PhysicalObservationReasonTest` | Token parsing, transition reason mapping, error cases for unknown tokens |
+| `PhysicalObservationRegistryTest` | First observation accepted, duplicate detection, stale rejection, conflict at same sequence (WORLD_DROP vs ENTITY, PLAYER vs WORLD_DROP, PLAYER vs ENTITY, ENTITY vs ENTITY, WORLD_DROP vs WORLD_DROP), terminal subject no conflict, session isolation, clear resets, stale expiration after timeout |
+| `PhysicalUniqueItemObservationTest` | Idempotency key determinism, differences by reason/subject/sequence, optional entity item UUID |
+| `PhysicalUniqueItemObservationServiceTest` | Process creates tracked item and transition, existing item observation, duplicate skip, stale rejection, no-change same subject, despawn terminal, entity held transition, idempotent replay, transitioned flag, conflict increments warning metric |
+| `OwnershipSubjectWorldDropUuidTest` | worldDrop(UUID) factory, display name preservation, lowercase stable ID, UUID vs location-based difference |
+| `PhysicalObservationIntegrationTest` | Full chain PLAYER→WORLD_DROP→ENTITY→WORLD_DROP→PLAYER, restart preserves owner, despawn terminal, stale rejection, idempotent despawn, service processes any material, history preserved, missing DB record reconciled |
 
 `shadowJar` is finalized by `shadowJarSmokeTest`, which opens a real SQLite database using
 **only** the shaded JAR. Unit tests run against the un-shadowed classpath, so they cannot

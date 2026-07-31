@@ -54,7 +54,13 @@ public final class SettingsLoader {
                 bool(source, warnings, "items.automatic-tracking.reconcile-on-respawn", true),
                 bool(source, warnings, "items.automatic-tracking.reconcile-after-inventory-events", true),
                 bool(source, warnings, "items.automatic-tracking.transform-identity-continuity", true),
-                bool(source, warnings, "items.automatic-tracking.debug-messages", false)
+                bool(source, warnings, "items.automatic-tracking.debug-messages", false),
+                bool(source, warnings, "items.physical-tracking.enabled", true),
+                bool(source, warnings, "items.physical-tracking.world-drops", true),
+                bool(source, warnings, "items.physical-tracking.entity-pickup", true),
+                bool(source, warnings, "items.physical-tracking.reconcile-loaded-entities", true),
+                bool(source, warnings, "items.physical-tracking.item-despawn", true),
+                bool(source, warnings, "items.physical-tracking.debug-messages", false)
         );
 
         if (settings.recentMaximumCount() < settings.recentDefaultCount()) {

@@ -217,6 +217,7 @@ public final class WorldEchoCommand implements CommandExecutor, TabCompleter {
         );
 
         line(sender, "auto-tracking", settings.automaticTrackingEnabled() ? "enabled" : "disabled");
+        line(sender, "physical-tracking", settings.physicalTrackingEnabled() ? "enabled" : "disabled");
         line(sender, "recon.count", Long.toString(reconciliationMetrics.inventoryReconciliations()));
         line(sender, "recon.identities", Long.toString(reconciliationMetrics.automaticIdentitiesAssigned()));
         line(sender, "recon.lots", Long.toString(reconciliationMetrics.automaticLotsAssigned()));
@@ -224,6 +225,13 @@ public final class WorldEchoCommand implements CommandExecutor, TabCompleter {
         line(sender, "recon.warnings", Long.toString(reconciliationMetrics.identityWarnings()));
         line(sender, "recon.duplicates", Long.toString(reconciliationMetrics.duplicateIdentityObservations()));
         line(sender, "recon.pending", Long.toString(reconciliationMetrics.pendingReconciliations()));
+        line(sender, "phys.world-drops", Long.toString(reconciliationMetrics.worldDropObservations()));
+        line(sender, "phys.entity-items", Long.toString(reconciliationMetrics.entityItemObservations()));
+        line(sender, "phys.loaded-reconciles", Long.toString(reconciliationMetrics.loadedEntityReconciliations()));
+        line(sender, "phys.ownership-transitions", Long.toString(reconciliationMetrics.physicalOwnershipTransitions()));
+        line(sender, "phys.warnings", Long.toString(reconciliationMetrics.physicalObservationWarnings()));
+        line(sender, "phys.stale-rejected", Long.toString(reconciliationMetrics.staleObservationsRejected()));
+        line(sender, "phys.pending", Long.toString(reconciliationMetrics.pendingPhysicalObservations()));
     }
 
     private void recent(CommandSender sender, String[] args) {

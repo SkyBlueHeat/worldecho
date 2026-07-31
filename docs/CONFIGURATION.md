@@ -127,6 +127,29 @@ Normal players and server administrators are not expected to manually track item
 
 When automatic tracking is disabled, manual commands (`/worldecho item track`, `/worldecho item assign-owner`) remain available as diagnostic and repair tools.
 
+## items.physical-tracking
+
+WorldEcho automatically observes physical ownership transitions for persistent
+UNIQUE items across PLAYER, WORLD_DROP, and ENTITY subjects. No player or
+administrator command is required during normal gameplay.
+
+UNIQUE items have persistent physical identity and ownership history. LOT
+records remain owner-scoped commodity aggregates. Sprint 0.3C1 does not
+physically track LOT stacks outside player inventories.
+
+| Key | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `enabled` | boolean | `true` | Master switch for physical ownership observations. When `false`, no physical tracking occurs. |
+| `world-drops` | boolean | `true` | Observe player drops and generic Item entity spawns as WORLD_DROP subjects. |
+| `entity-pickup` | boolean | `true` | Observe non-player entity item pickups as ENTITY subjects and handle entity death equipment. |
+| `reconcile-loaded-entities` | boolean | `true` | Reconcile loaded Item entities and entity equipment on chunk load or server restart. |
+| `item-despawn` | boolean | `true` | Record terminal SYSTEM observations for despawned UNIQUE items. |
+| `debug-messages` | boolean | `false` | Show debug messages for physical tracking (admin only, console only). |
+
+When physical tracking is disabled, existing ownership data and manual commands
+remain available. Reload updates these settings without scanning the world or
+clearing metrics.
+
 ## Content bindings (`bindings.yml`)
 
 Bindings map provider-specific content IDs to WorldEcho semantic metadata. A binding

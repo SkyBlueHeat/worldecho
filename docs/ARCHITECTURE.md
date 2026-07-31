@@ -43,7 +43,10 @@ dev.worldecho.domain.item
   LotOwnershipLedgerEntry, LotOwnershipState, LotOwnershipTransitionService,
   AutomaticItemIdentityService, ReconciliationCycle, ObservedInventorySlot,
   ObservedInventorySnapshot, SlotProcessResult, ReconciliationMetrics,
-  DuplicateObservationRegistry. No Bukkit imports.
+  DuplicateObservationRegistry, PhysicalObservationReason,
+  PhysicalUniqueItemObservation, PhysicalObservationCycle,
+  PhysicalObservationResult, PhysicalObservationRegistry,
+  PhysicalUniqueItemObservationService. No Bukkit imports.
 
 dev.worldecho.application
   Use cases: record memory, generate candidate, create story, schedule consequence,
@@ -70,8 +73,11 @@ dev.worldecho.paper.inventory
 
 dev.worldecho.paper.listener
   PlayerDeathMemoryListener, PlayerInventoryObservationListener,
-  ItemTransformationListener: event-driven reconciliation triggers and
-  transformation identity continuity.
+  ItemTransformationListener, WorldDropObservationListener,
+  EntityItemOwnershipListener, ItemDespawnListener,
+  LoadedEntityReconciliationListener: event-driven reconciliation triggers,
+  transformation identity continuity, and physical ownership observations
+  for UNIQUE items across WORLD_DROP and ENTITY subjects.
 
 dev.worldecho.paper.item
   ItemIdentityAdapter: reads and writes WorldEcho tracked-item IDs on ItemStacks

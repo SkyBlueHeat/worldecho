@@ -46,8 +46,8 @@ Current foundation:
   persistence, content bindings, eligibility, item identity, ownership ledger, and the
   shipped resources
 
-Not implemented yet (Sprint 0.3C and later): world-drop tracking, container ownership,
-mob equipment, story generation, rival generation, factions, and external content bridges.
+Not implemented yet (Sprint 0.3C2 and later): container ownership, mob equipment death drops,
+story generation, rival generation, factions, and external content bridges.
 
 ## Core product rule
 
@@ -88,7 +88,7 @@ also require their respective permissions: `worldecho.item.inspect`, `worldecho.
 
 | Command | Description |
 | --- | --- |
-| `/worldecho status` | Version, locale, queue counters, providers, database health, schema version, event count, tracked-items, ledger-entries, automatic tracking metrics |
+| `/worldecho status` | Version, locale, queue counters, providers, database health, schema version, event count, tracked-items, ledger-entries, automatic tracking metrics, physical tracking metrics |
 | `/worldecho recent [count]` | Most recent memories, read off the server thread |
 | `/worldecho inspect item` | Provider, content ID, roles, capabilities, binding metadata, score breakdown, and ownership data of the held item |
 | `/worldecho inspect entity` | Provider, content ID, roles, capabilities, and binding metadata of the entity you are looking at |
@@ -108,6 +108,7 @@ also require their respective permissions: `worldecho.item.inspect`, `worldecho.
 - `docs/ARCHITECTURE.md` — target architecture
 - `docs/SPRINT_0.3A.md` — Sprint 0.3A item identity and ownership ledger details
 - `docs/SPRINT_0.3B.md` — Sprint 0.3B automatic player inventory tracking details
+- `docs/SPRINT_0.3C1.md` — Sprint 0.3C1 automatic world-drop and entity ownership details
 - `docs/SPRINT_1.md` — first implementation slice
 - `docs/ROADMAP.md` — staged delivery plan
 - `docs/CONFIGURATION.md` — every configuration key and the scoring formula

@@ -268,3 +268,47 @@
   child lots to comply with the UNIQUE constraint.
 - New tests: `MigrationV4BackfillTest` (11 tests), `ReconcileOwnerAggregatesTest` (9 tests).
 - Total: 383 tests, 0 failures, 0 skipped.
+
+### Added (0.3.2-SNAPSHOT — Sprint 0.3C1)
+
+- Automatic physical ownership observations for persistent UNIQUE items across
+  PLAYER, WORLD_DROP, and ENTITY subjects without player or admin commands
+- `PhysicalObservationReason` enum: DROPPED, WORLD_DROP_OBSERVED, ENTITY_HELD,
+  ENTITY_DEATH_DROP, DESPAWNED, LOADED_ITEM, LOADED_ENTITY_EQUIPMENT
+- `PhysicalUniqueItemObservation`: immutable observation record with deterministic
+  idempotency keys based on session ID, sequence, item ID, subject, and reason
+- `PhysicalObservationCycle`: stable cycle identifier with monotonic sequence
+  for ordering and stale-observation rejection
+- `PhysicalObservationResult`: immutable processing result with status, ownership
+  result, and diagnostic
+- `PhysicalObservationRegistry`: bounded in-memory registry detecting duplicate
+  and stale observations; conflicts only at same sequence with different
+  non-terminal subjects; terminal SYSTEM subjects never conflict
+- `PhysicalUniqueItemObservationService`: async service that ensures tracked-item
+  records, delegates to `OwnershipTransitionService`, records metrics
+- `WorldDropObservationListener`: `PlayerDropItemEvent` (PLAYER → WORLD_DROP),
+  `ItemSpawnEvent` (generic world-drop observation with identity assignment for
+  untracked UNIQUE items)
+- `EntityItemOwnershipListener`: `EntityPickupItemEvent` for non-player living
+  entities (WORLD_DROP → ENTITY); `EntityDeathEvent` records terminal
+  SYSTEM:item-destroyed observation for equipped UNIQUE items not in death
+  drops; player pickups handled by existing reconciler
+- `ItemDespawnListener`: `ItemDespawnEvent` records terminal SYSTEM observation
+- `LoadedEntityReconciliationListener`: `EntitiesLoadEvent` reconciles loaded
+  Item entities and entity equipment (main hand, off hand, armor slots)
+- `OwnershipSubject.worldDrop(UUID)`: factory for item-entity-UUID-based subjects
+- `OwnershipTransitionReason`: new `WORLD_DROP_OBSERVED`, `DESPAWNED` reasons
+- `ReconciliationMetrics`: 7 new physical tracking counters
+- `/worldecho status` now shows physical-tracking enabled flag and 7 physical
+  tracking metrics
+- Configuration: `items.physical-tracking.*` section with enable/disable and
+  per-feature toggles (world-drops, entity-pickup, reconcile-loaded-entities,
+  item-despawn, debug-messages)
+- English and Turkish messages: 6 physical tracking keys (disabled, malformed
+  identity, duplicate observation, stale rejected, persistence failure,
+  unsupported subject)
+- Tests: `PhysicalObservationReasonTest` (11), `PhysicalObservationRegistryTest` (13),
+  `PhysicalUniqueItemObservationTest` (7), `PhysicalUniqueItemObservationServiceTest` (11),
+  `OwnershipSubjectWorldDropUuidTest` (4), `PhysicalObservationIntegrationTest` (13)
+- `EntityItemOwnershipListener`: `EntityDeathEvent` records terminal SYSTEM:item-destroyed
+  for equipped UNIQUE items not in death drops; unused variable removed

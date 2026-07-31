@@ -22,11 +22,17 @@ import dev.worldecho.paper.item.ItemIdentityAdapter;
 import dev.worldecho.paper.listener.PlayerDeathMemoryListener;
 import dev.worldecho.paper.listener.PlayerInventoryObservationListener;
 import dev.worldecho.paper.listener.ItemTransformationListener;
+import dev.worldecho.paper.listener.WorldDropObservationListener;
+import dev.worldecho.paper.listener.EntityItemOwnershipListener;
+import dev.worldecho.paper.listener.ItemDespawnListener;
+import dev.worldecho.paper.listener.LoadedEntityReconciliationListener;
 import dev.worldecho.paper.message.PaperMessageService;
 import dev.worldecho.domain.item.AutomaticItemIdentityService;
 import dev.worldecho.domain.item.LotOwnershipTransitionService;
 import dev.worldecho.domain.item.OwnershipTransitionService;
 import dev.worldecho.domain.item.ReconciliationMetrics;
+import dev.worldecho.domain.item.PhysicalObservationRegistry;
+import dev.worldecho.domain.item.PhysicalUniqueItemObservationService;
 import dev.worldecho.persistence.DatabaseManager;
 import dev.worldecho.persistence.LotOwnershipLedgerRepository;
 import dev.worldecho.persistence.OwnershipLedgerRepository;
@@ -90,6 +96,9 @@ public final class WorldEchoPlugin extends JavaPlugin {
     private dev.worldecho.domain.item.DuplicateObservationRegistry duplicateObservationRegistry;
     private PlayerInventoryReconciler inventoryReconciler;
     private PlayerInventoryReconciliationScheduler reconciliationScheduler;
+    private PhysicalObservationRegistry physicalObservationRegistry;
+    private PhysicalUniqueItemObservationService physicalObservationService;
+    private PlayerInventoryObservationListener inventoryObservationListener;
 
     @Override
     public void onEnable() {
@@ -180,18 +189,78 @@ public final class WorldEchoPlugin extends JavaPlugin {
                 reconciliationMetrics
         );
 
-        getServer().getPluginManager().registerEvents(
-                new PlayerInventoryObservationListener(
-                        () -> settings,
-                        reconciliationScheduler
-                ),
-                this
+        inventoryObservationListener = new PlayerInventoryObservationListener(
+                () -> settings,
+                reconciliationScheduler
         );
+        getServer().getPluginManager().registerEvents(inventoryObservationListener, this);
 
         getServer().getPluginManager().registerEvents(
                 new ItemTransformationListener(
                         () -> settings,
                         itemIdentityAdapter
+                ),
+                this
+        );
+
+        physicalObservationRegistry = new PhysicalObservationRegistry(300_000L);
+        physicalObservationService = new PhysicalUniqueItemObservationService(
+                trackedItemRepository,
+                ownershipTransitionService,
+                physicalObservationRegistry,
+                reconciliationMetrics,
+                java.time.Clock.systemUTC()
+        );
+
+        getServer().getPluginManager().registerEvents(
+                new WorldDropObservationListener(
+                        this,
+                        () -> settings,
+                        itemIdentityAdapter,
+                        physicalObservationService,
+                        reconciliationMetrics,
+                        queryExecutor,
+                        inventoryObservationListener,
+                        serverSessionId
+                ),
+                this
+        );
+
+        getServer().getPluginManager().registerEvents(
+                new EntityItemOwnershipListener(
+                        this,
+                        () -> settings,
+                        itemIdentityAdapter,
+                        physicalObservationService,
+                        reconciliationMetrics,
+                        queryExecutor,
+                        serverSessionId
+                ),
+                this
+        );
+
+        getServer().getPluginManager().registerEvents(
+                new ItemDespawnListener(
+                        this,
+                        () -> settings,
+                        itemIdentityAdapter,
+                        physicalObservationService,
+                        reconciliationMetrics,
+                        queryExecutor,
+                        serverSessionId
+                ),
+                this
+        );
+
+        getServer().getPluginManager().registerEvents(
+                new LoadedEntityReconciliationListener(
+                        this,
+                        () -> settings,
+                        itemIdentityAdapter,
+                        physicalObservationService,
+                        reconciliationMetrics,
+                        queryExecutor,
+                        serverSessionId
                 ),
                 this
         );
@@ -216,7 +285,14 @@ public final class WorldEchoPlugin extends JavaPlugin {
                     + " lots-assigned=" + reconciliationMetrics.automaticLotsAssigned()
                     + " ownership-transitions=" + reconciliationMetrics.ownershipTransitionsRecorded()
                     + " warnings=" + reconciliationMetrics.identityWarnings()
-                    + " duplicates=" + reconciliationMetrics.duplicateIdentityObservations());
+                    + " duplicates=" + reconciliationMetrics.duplicateIdentityObservations()
+                    + " world-drop-observations=" + reconciliationMetrics.worldDropObservations()
+                    + " entity-item-observations=" + reconciliationMetrics.entityItemObservations()
+                    + " loaded-entity-reconciliations=" + reconciliationMetrics.loadedEntityReconciliations()
+                    + " physical-ownership-transitions=" + reconciliationMetrics.physicalOwnershipTransitions()
+                    + " physical-observation-warnings=" + reconciliationMetrics.physicalObservationWarnings()
+                    + " stale-observations-rejected=" + reconciliationMetrics.staleObservationsRejected()
+                    + " pending-physical-observations=" + reconciliationMetrics.pendingPhysicalObservations());
         }
         if (writeQueue != null) {
             boolean drained = writeQueue.shutdown(settings.shutdownTimeout());
