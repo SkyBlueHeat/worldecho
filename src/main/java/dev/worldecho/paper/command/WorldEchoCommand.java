@@ -232,6 +232,7 @@ public final class WorldEchoCommand implements CommandExecutor, TabCompleter {
         line(sender, "phys.warnings", Long.toString(reconciliationMetrics.physicalObservationWarnings()));
         line(sender, "phys.stale-rejected", Long.toString(reconciliationMetrics.staleObservationsRejected()));
         line(sender, "phys.pending", Long.toString(reconciliationMetrics.pendingPhysicalObservations()));
+        line(sender, "phys.rejected", Long.toString(reconciliationMetrics.rejectedPhysicalObservations()));
     }
 
     private void recent(CommandSender sender, String[] args) {

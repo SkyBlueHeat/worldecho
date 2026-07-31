@@ -21,6 +21,7 @@ public final class ReconciliationMetrics {
     private final AtomicLong physicalObservationWarnings = new AtomicLong();
     private final AtomicLong staleObservationsRejected = new AtomicLong();
     private final AtomicLong pendingPhysicalObservations = new AtomicLong();
+    private final AtomicLong rejectedPhysicalObservations = new AtomicLong();
 
     public void recordReconciliation() {
         inventoryReconciliations.incrementAndGet();
@@ -86,6 +87,10 @@ public final class ReconciliationMetrics {
         pendingPhysicalObservations.decrementAndGet();
     }
 
+    public void recordRejectedPhysicalObservation() {
+        rejectedPhysicalObservations.incrementAndGet();
+    }
+
     public long inventoryReconciliations() {
         return inventoryReconciliations.get();
     }
@@ -142,6 +147,10 @@ public final class ReconciliationMetrics {
         return pendingPhysicalObservations.get();
     }
 
+    public long rejectedPhysicalObservations() {
+        return rejectedPhysicalObservations.get();
+    }
+
     public void reset() {
         inventoryReconciliations.set(0);
         automaticIdentitiesAssigned.set(0);
@@ -157,5 +166,6 @@ public final class ReconciliationMetrics {
         physicalObservationWarnings.set(0);
         staleObservationsRejected.set(0);
         pendingPhysicalObservations.set(0);
+        rejectedPhysicalObservations.set(0);
     }
 }

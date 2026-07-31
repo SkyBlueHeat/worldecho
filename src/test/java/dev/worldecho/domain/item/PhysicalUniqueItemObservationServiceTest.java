@@ -116,7 +116,7 @@ class PhysicalUniqueItemObservationServiceTest {
         PhysicalObservationResult result = service.process(buildObservation(itemId, worldDrop,
                 PhysicalObservationReason.LOADED_ITEM, 2));
 
-        assertEquals(PhysicalObservationResult.Status.NO_CHANGE, result.status());
+        assertEquals(PhysicalObservationResult.Status.IDEMPOTENT_REPLAY, result.status());
     }
 
     @Test

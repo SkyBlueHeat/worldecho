@@ -3,9 +3,11 @@ package dev.worldecho.paper.listener;
 import dev.worldecho.config.WorldEchoSettings;
 import dev.worldecho.domain.content.ContentKey;
 import dev.worldecho.domain.item.ItemDescriptor;
+import dev.worldecho.domain.item.BoundedPhysicalObservationQueue;
 import dev.worldecho.domain.item.OwnershipSubject;
 import dev.worldecho.domain.item.PhysicalObservationCycle;
 import dev.worldecho.domain.item.PhysicalObservationReason;
+import dev.worldecho.domain.item.PhysicalObservationSequencer;
 import dev.worldecho.domain.item.PhysicalUniqueItemObservation;
 import dev.worldecho.domain.item.PhysicalUniqueItemObservationService;
 import dev.worldecho.domain.item.ReconciliationMetrics;
@@ -28,9 +30,9 @@ import java.time.Instant;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * Listens for non-player entity item pickup and entity death to observe
@@ -41,20 +43,24 @@ import java.util.function.Supplier;
  * living entities.
  *
  * <p>On entity death, equipped UNIQUE items are checked. If a tracked UNIQUE
- * item was equipped but does not appear in the death drops, a terminal
- * SYSTEM observation is recorded. Items that do appear in drops will be
- * reconciled by {@link WorldDropObservationListener} via {@code ItemSpawnEvent}.
+ * item was equipped but does not appear in the death drops, a bounded warning
+ * is logged but no terminal transition is written. The item may still appear
+ * via another plugin mechanism. Terminal SYSTEM observations are deferred
+ * until explicit death-drop correlation exists. Items that do appear in drops
+ * will be reconciled by {@link WorldDropObservationListener} via
+ * {@code ItemSpawnEvent}.
  */
 public final class EntityItemOwnershipListener implements Listener {
+
+    private static final Logger LOGGER = Logger.getLogger(EntityItemOwnershipListener.class.getName());
 
     private final Plugin plugin;
     private final Supplier<WorldEchoSettings> settingsSupplier;
     private final ItemIdentityAdapter identityAdapter;
     private final PhysicalUniqueItemObservationService observationService;
     private final ReconciliationMetrics metrics;
-    private final Executor asyncExecutor;
-    private final AtomicLong observationSequenceCounter = new AtomicLong(0);
-    private final String serverSessionId;
+    private final BoundedPhysicalObservationQueue observationQueue;
+    private final PhysicalObservationSequencer sequencer;
 
     public EntityItemOwnershipListener(
             Plugin plugin,
@@ -62,16 +68,16 @@ public final class EntityItemOwnershipListener implements Listener {
             ItemIdentityAdapter identityAdapter,
             PhysicalUniqueItemObservationService observationService,
             ReconciliationMetrics metrics,
-            Executor asyncExecutor,
-            String serverSessionId
+            BoundedPhysicalObservationQueue observationQueue,
+            PhysicalObservationSequencer sequencer
     ) {
         this.plugin = plugin;
         this.settingsSupplier = settingsSupplier;
         this.identityAdapter = identityAdapter;
         this.observationService = observationService;
         this.metrics = metrics;
-        this.asyncExecutor = asyncExecutor;
-        this.serverSessionId = serverSessionId;
+        this.observationQueue = observationQueue;
+        this.sequencer = sequencer;
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
@@ -117,8 +123,7 @@ public final class EntityItemOwnershipListener implements Listener {
         var location = livingEntity.getLocation();
         String contentFingerprint = descriptor.materialKey() + ":" + itemStack.getAmount();
 
-        PhysicalObservationCycle cycle = PhysicalObservationCycle.create(
-                observationSequenceCounter.incrementAndGet(), serverSessionId);
+        PhysicalObservationCycle cycle = sequencer.nextCycle();
 
         PhysicalUniqueItemObservation observation = new PhysicalUniqueItemObservation(
                 itemId,
@@ -205,53 +210,17 @@ public final class EntityItemOwnershipListener implements Listener {
                 continue;
             }
 
-            String material = "unknown";
-            ContentKey contentKey = ContentKey.parse("minecraft:unknown");
-            String contentFingerprint = "unknown:1";
-
-            PhysicalObservationCycle cycle = PhysicalObservationCycle.create(
-                    observationSequenceCounter.incrementAndGet(), serverSessionId);
-
-            PhysicalUniqueItemObservation observation = new PhysicalUniqueItemObservation(
-                    itemId,
-                    contentKey,
-                    material,
-                    OwnershipSubject.system("item-destroyed"),
-                    PhysicalObservationReason.ENTITY_DEATH_DROP,
-                    null,
-                    worldUuid,
-                    worldName,
-                    blockX, blockY, blockZ,
-                    contentFingerprint,
-                    cycle,
-                    Instant.now()
-            );
-
-            submitDeathObservation(observation);
+            LOGGER.log(Level.WARNING, "Equipped UNIQUE item {0} on entity at {1},{2},{3} in {4} "
+                    + "did not appear in death drops. Not recording terminal transition — "
+                    + "item may reappear via another plugin mechanism.",
+                    new Object[]{itemId, blockX, blockY, blockZ, worldName});
+            metrics.recordPhysicalObservationWarning();
         }
     }
 
     private void submitObservation(PhysicalUniqueItemObservation observation) {
-        metrics.incrementPendingPhysical();
         metrics.recordEntityItemObservation();
-        asyncExecutor.execute(() -> {
-            try {
-                observationService.process(observation);
-            } finally {
-                metrics.decrementPendingPhysical();
-            }
-        });
-    }
-
-    private void submitDeathObservation(PhysicalUniqueItemObservation observation) {
-        metrics.incrementPendingPhysical();
-        asyncExecutor.execute(() -> {
-            try {
-                observationService.process(observation);
-            } finally {
-                metrics.decrementPendingPhysical();
-            }
-        });
+        observationQueue.submit(observation, observationService);
     }
 
     private boolean isPhysicalTrackingEnabled(WorldEchoSettings settings) {

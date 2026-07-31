@@ -31,7 +31,9 @@ import dev.worldecho.domain.item.AutomaticItemIdentityService;
 import dev.worldecho.domain.item.LotOwnershipTransitionService;
 import dev.worldecho.domain.item.OwnershipTransitionService;
 import dev.worldecho.domain.item.ReconciliationMetrics;
+import dev.worldecho.domain.item.BoundedPhysicalObservationQueue;
 import dev.worldecho.domain.item.PhysicalObservationRegistry;
+import dev.worldecho.domain.item.PhysicalObservationSequencer;
 import dev.worldecho.domain.item.PhysicalUniqueItemObservationService;
 import dev.worldecho.persistence.DatabaseManager;
 import dev.worldecho.persistence.LotOwnershipLedgerRepository;
@@ -84,6 +86,7 @@ public final class WorldEchoPlugin extends JavaPlugin {
     private StoryEventRepository repository;
     private StoryWriteQueue writeQueue;
     private ExecutorService queryExecutor;
+    private BoundedPhysicalObservationQueue physicalObservationQueue;
     private ItemIdentityAdapter itemIdentityAdapter;
     private TrackedItemRepository trackedItemRepository;
     private OwnershipLedgerRepository ledgerRepository;
@@ -171,6 +174,12 @@ public final class WorldEchoPlugin extends JavaPlugin {
         duplicateObservationRegistry = new dev.worldecho.domain.item.DuplicateObservationRegistry(300_000L);
 
         String serverSessionId = java.util.UUID.randomUUID().toString();
+        PhysicalObservationSequencer physicalObservationSequencer =
+                new PhysicalObservationSequencer(serverSessionId);
+        physicalObservationQueue = new BoundedPhysicalObservationQueue(
+                settings.physicalTrackingMaxPendingCapacity(),
+                reconciliationMetrics
+        );
         inventoryReconciler = new PlayerInventoryReconciler(
                 () -> settings,
                 integrations,
@@ -219,9 +228,9 @@ public final class WorldEchoPlugin extends JavaPlugin {
                         itemIdentityAdapter,
                         physicalObservationService,
                         reconciliationMetrics,
-                        queryExecutor,
+                        physicalObservationQueue,
                         inventoryObservationListener,
-                        serverSessionId
+                        physicalObservationSequencer
                 ),
                 this
         );
@@ -233,8 +242,8 @@ public final class WorldEchoPlugin extends JavaPlugin {
                         itemIdentityAdapter,
                         physicalObservationService,
                         reconciliationMetrics,
-                        queryExecutor,
-                        serverSessionId
+                        physicalObservationQueue,
+                        physicalObservationSequencer
                 ),
                 this
         );
@@ -246,8 +255,8 @@ public final class WorldEchoPlugin extends JavaPlugin {
                         itemIdentityAdapter,
                         physicalObservationService,
                         reconciliationMetrics,
-                        queryExecutor,
-                        serverSessionId
+                        physicalObservationQueue,
+                        physicalObservationSequencer
                 ),
                 this
         );
@@ -259,8 +268,8 @@ public final class WorldEchoPlugin extends JavaPlugin {
                         itemIdentityAdapter,
                         physicalObservationService,
                         reconciliationMetrics,
-                        queryExecutor,
-                        serverSessionId
+                        physicalObservationQueue,
+                        physicalObservationSequencer
                 ),
                 this
         );
@@ -292,7 +301,8 @@ public final class WorldEchoPlugin extends JavaPlugin {
                     + " physical-ownership-transitions=" + reconciliationMetrics.physicalOwnershipTransitions()
                     + " physical-observation-warnings=" + reconciliationMetrics.physicalObservationWarnings()
                     + " stale-observations-rejected=" + reconciliationMetrics.staleObservationsRejected()
-                    + " pending-physical-observations=" + reconciliationMetrics.pendingPhysicalObservations());
+                    + " pending-physical-observations=" + reconciliationMetrics.pendingPhysicalObservations()
+                    + " rejected-physical-observations=" + reconciliationMetrics.rejectedPhysicalObservations());
         }
         if (writeQueue != null) {
             boolean drained = writeQueue.shutdown(settings.shutdownTimeout());
@@ -303,6 +313,20 @@ public final class WorldEchoPlugin extends JavaPlugin {
                 getLogger().warning("Story write queue did not drain in time; pending="
                         + status.pending() + " failed=" + status.failed()
                         + " dropped=" + status.dropped());
+            }
+        }
+
+        if (physicalObservationQueue != null) {
+            boolean drained = physicalObservationQueue.shutdown(
+                    settings != null ? settings.shutdownTimeout().toSeconds() : 10);
+            if (drained) {
+                getLogger().info("Physical observation queue drained: pending="
+                        + physicalObservationQueue.pendingCount()
+                        + " submitted=" + physicalObservationQueue.totalSubmitted()
+                        + " rejected=" + physicalObservationQueue.totalRejected());
+            } else {
+                getLogger().warning("Physical observation queue did not drain in time; pending="
+                        + physicalObservationQueue.pendingCount());
             }
         }
 

@@ -209,7 +209,7 @@ class PhysicalObservationIntegrationTest {
                 itemId, OwnershipSubject.worldDrop(itemEntityUuid),
                 PhysicalObservationReason.LOADED_ITEM, 2));
 
-        assertEquals(PhysicalObservationResult.Status.NO_CHANGE, result.status());
+        assertEquals(PhysicalObservationResult.Status.IDEMPOTENT_REPLAY, result.status());
         assertEquals(1, ledgerRepository.countHistory(itemId));
     }
 
@@ -358,6 +358,64 @@ class PhysicalObservationIntegrationTest {
                 ledgerRepository.findHistory(itemId, 10);
         assertEquals(3, history.size());
         assertTrue(trackedItemRepository.exists(itemId));
+    }
+
+    @Test
+    void concurrentDropAndSpawnProduceExactlyOneWorldDropTransition() throws Exception {
+        TrackedItemId itemId = createTrackedItem();
+        UUID itemEntityUuid = UUID.randomUUID();
+        OwnershipSubject worldDrop = OwnershipSubject.worldDrop(itemEntityUuid);
+
+        PhysicalUniqueItemObservation dropObs = new PhysicalUniqueItemObservation(
+                itemId, ContentKey.parse("minecraft:diamond_sword"), "diamond_sword",
+                worldDrop, PhysicalObservationReason.DROPPED,
+                itemEntityUuid, UUID.randomUUID(), "world",
+                0, 64, 0, "diamond_sword:1",
+                PhysicalObservationCycle.create(1, "session-1"), Instant.now());
+
+        PhysicalUniqueItemObservation spawnObs = new PhysicalUniqueItemObservation(
+                itemId, ContentKey.parse("minecraft:diamond_sword"), "diamond_sword",
+                worldDrop, PhysicalObservationReason.WORLD_DROP_OBSERVED,
+                itemEntityUuid, UUID.randomUUID(), "world",
+                0, 64, 0, "diamond_sword:1",
+                PhysicalObservationCycle.create(2, "session-1"), Instant.now());
+
+        java.util.concurrent.ExecutorService pool =
+                java.util.concurrent.Executors.newFixedThreadPool(2);
+        java.util.concurrent.CountDownLatch latch = new java.util.concurrent.CountDownLatch(2);
+        java.util.List<PhysicalObservationResult> results =
+                java.util.Collections.synchronizedList(new java.util.ArrayList<>());
+
+        pool.submit(() -> {
+            latch.countDown();
+            try { latch.await(); } catch (InterruptedException e) { Thread.currentThread().interrupt(); return; }
+            results.add(observationService.process(dropObs));
+        });
+        pool.submit(() -> {
+            latch.countDown();
+            try { latch.await(); } catch (InterruptedException e) { Thread.currentThread().interrupt(); return; }
+            results.add(observationService.process(spawnObs));
+        });
+
+        pool.shutdown();
+        assertTrue(pool.awaitTermination(5, java.util.concurrent.TimeUnit.SECONDS));
+
+        assertEquals(2, results.size());
+
+        long processedCount = results.stream()
+                .filter(r -> r.status() == PhysicalObservationResult.Status.PROCESSED
+                        || r.status() == PhysicalObservationResult.Status.NO_CHANGE)
+                .count();
+        assertTrue(processedCount >= 1, "At least one observation must be PROCESSED or NO_CHANGE");
+
+        long ledgerCount = ledgerRepository.countHistory(itemId);
+        assertEquals(1, ledgerCount,
+                "Exactly one WORLD_DROP ledger entry must exist for the same physical Item entity");
+
+        Optional<OwnershipState> state = ledgerRepository.findCurrentOwnership(itemId);
+        assertTrue(state.isPresent());
+        assertEquals(OwnershipSubjectType.WORLD_DROP, state.get().currentSubject().type());
+        assertEquals(itemEntityUuid.toString(), state.get().currentSubject().stableId());
     }
 
     private TrackedItemId createTrackedItem() throws Exception {

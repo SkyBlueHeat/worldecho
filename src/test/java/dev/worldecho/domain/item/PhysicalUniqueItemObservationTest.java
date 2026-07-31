@@ -133,4 +133,92 @@ class PhysicalUniqueItemObservationTest {
 
         assertTrue(obs.optionalEntityItemUuid().isEmpty());
     }
+
+    @Test
+    void semanticTransitionKeyGroupsDroppedAndWorldDropObservedForSameItemEntity() {
+        TrackedItemId itemId = TrackedItemId.random();
+        UUID itemEntityUuid = UUID.randomUUID();
+        OwnershipSubject worldDrop = OwnershipSubject.worldDrop(itemEntityUuid);
+
+        PhysicalUniqueItemObservation dropped = new PhysicalUniqueItemObservation(
+                itemId, ContentKey.parse("minecraft:diamond_sword"), "diamond_sword",
+                worldDrop, PhysicalObservationReason.DROPPED,
+                itemEntityUuid, UUID.randomUUID(), "world",
+                0, 64, 0, "diamond_sword:1",
+                PhysicalObservationCycle.create(1, "session-1"), Instant.now());
+
+        PhysicalUniqueItemObservation spawned = new PhysicalUniqueItemObservation(
+                itemId, ContentKey.parse("minecraft:diamond_sword"), "diamond_sword",
+                worldDrop, PhysicalObservationReason.WORLD_DROP_OBSERVED,
+                itemEntityUuid, UUID.randomUUID(), "world",
+                0, 64, 0, "diamond_sword:1",
+                PhysicalObservationCycle.create(2, "session-1"), Instant.now());
+
+        assertEquals(dropped.semanticTransitionKey(), spawned.semanticTransitionKey());
+    }
+
+    @Test
+    void semanticTransitionKeyDiffersForDifferentItemEntities() {
+        TrackedItemId itemId = TrackedItemId.random();
+        UUID entity1 = UUID.randomUUID();
+        UUID entity2 = UUID.randomUUID();
+
+        PhysicalUniqueItemObservation obs1 = new PhysicalUniqueItemObservation(
+                itemId, ContentKey.parse("minecraft:diamond_sword"), "diamond_sword",
+                OwnershipSubject.worldDrop(entity1),
+                PhysicalObservationReason.DROPPED,
+                entity1, UUID.randomUUID(), "world",
+                0, 64, 0, "diamond_sword:1",
+                PhysicalObservationCycle.create(1, "session-1"), Instant.now());
+
+        PhysicalUniqueItemObservation obs2 = new PhysicalUniqueItemObservation(
+                itemId, ContentKey.parse("minecraft:diamond_sword"), "diamond_sword",
+                OwnershipSubject.worldDrop(entity2),
+                PhysicalObservationReason.DROPPED,
+                entity2, UUID.randomUUID(), "world",
+                0, 64, 0, "diamond_sword:1",
+                PhysicalObservationCycle.create(2, "session-1"), Instant.now());
+
+        assertTrue(!obs1.semanticTransitionKey().equals(obs2.semanticTransitionKey()));
+    }
+
+    @Test
+    void semanticTransitionKeyDiffersForEntityVsWorldDrop() {
+        TrackedItemId itemId = TrackedItemId.random();
+        UUID itemEntityUuid = UUID.randomUUID();
+        UUID zombieUuid = UUID.randomUUID();
+
+        PhysicalUniqueItemObservation worldDrop = new PhysicalUniqueItemObservation(
+                itemId, ContentKey.parse("minecraft:diamond_sword"), "diamond_sword",
+                OwnershipSubject.worldDrop(itemEntityUuid),
+                PhysicalObservationReason.DROPPED,
+                itemEntityUuid, UUID.randomUUID(), "world",
+                0, 64, 0, "diamond_sword:1",
+                PhysicalObservationCycle.create(1, "session-1"), Instant.now());
+
+        PhysicalUniqueItemObservation entity = new PhysicalUniqueItemObservation(
+                itemId, ContentKey.parse("minecraft:diamond_sword"), "diamond_sword",
+                OwnershipSubject.entity(zombieUuid),
+                PhysicalObservationReason.ENTITY_HELD,
+                itemEntityUuid, UUID.randomUUID(), "world",
+                0, 64, 0, "diamond_sword:1",
+                PhysicalObservationCycle.create(2, "session-1"), Instant.now());
+
+        assertTrue(!worldDrop.semanticTransitionKey().equals(entity.semanticTransitionKey()));
+    }
+
+    @Test
+    void systemSubjectUsesObservationLevelIdempotencyKey() {
+        TrackedItemId itemId = TrackedItemId.random();
+
+        PhysicalUniqueItemObservation despawn = new PhysicalUniqueItemObservation(
+                itemId, ContentKey.parse("minecraft:diamond_sword"), "diamond_sword",
+                OwnershipSubject.system("item-despawned"),
+                PhysicalObservationReason.DESPAWNED,
+                UUID.randomUUID(), UUID.randomUUID(), "world",
+                0, 64, 0, "diamond_sword:1",
+                PhysicalObservationCycle.create(1, "session-1"), Instant.now());
+
+        assertEquals(despawn.semanticTransitionKey(), despawn.idempotencyKey());
+    }
 }

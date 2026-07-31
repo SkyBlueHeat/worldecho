@@ -60,7 +60,8 @@ public final class SettingsLoader {
                 bool(source, warnings, "items.physical-tracking.entity-pickup", true),
                 bool(source, warnings, "items.physical-tracking.reconcile-loaded-entities", true),
                 bool(source, warnings, "items.physical-tracking.item-despawn", true),
-                bool(source, warnings, "items.physical-tracking.debug-messages", false)
+                bool(source, warnings, "items.physical-tracking.debug-messages", false),
+                integer(source, warnings, "items.physical-tracking.max-pending-capacity", 256, 16, 10_000)
         );
 
         if (settings.recentMaximumCount() < settings.recentDefaultCount()) {

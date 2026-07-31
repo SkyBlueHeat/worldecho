@@ -62,4 +62,26 @@ public record PhysicalUniqueItemObservation(
                 + ":subject:" + observedSubject.describe()
                 + ":reason:" + observationReason.token();
     }
+
+    /**
+     * Semantic transition key that groups observations representing the same
+     * physical ownership transition, regardless of which event triggered them.
+     *
+     * <p>For example, {@code PlayerDropItemEvent} (reason DROPPED) and
+     * {@code ItemSpawnEvent} (reason WORLD_DROP_OBSERVED) for the same Item
+     * entity produce the same semantic key, so the second observation is
+     * treated as an idempotent replay rather than a duplicate transition.
+     *
+     * <p>For SYSTEM subjects, the observation-level idempotency key is returned
+     * because terminal observations should not be deduplicated across different
+     * events.
+     */
+    public String semanticTransitionKey() {
+        if (observedSubject.type() == OwnershipSubjectType.SYSTEM) {
+            return idempotencyKey();
+        }
+        return "physical:" + observedSubject.type().token()
+                + ":" + trackedItemId
+                + ":" + observedSubject.stableId();
+    }
 }

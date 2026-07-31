@@ -105,3 +105,6 @@ items:
     item-despawn: true
     # Show debug messages for physical tracking (admin only, console only).
     debug-messages: false
+    # Maximum pending physical observations in the async queue before rejection.
+    # Prevents unbounded memory growth during ItemSpawnEvent or EntitiesLoadEvent bursts.
+    max-pending-capacity: 256

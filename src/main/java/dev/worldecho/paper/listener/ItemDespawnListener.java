@@ -2,9 +2,11 @@ package dev.worldecho.paper.listener;
 
 import dev.worldecho.config.WorldEchoSettings;
 import dev.worldecho.domain.content.ContentKey;
+import dev.worldecho.domain.item.BoundedPhysicalObservationQueue;
 import dev.worldecho.domain.item.OwnershipSubject;
 import dev.worldecho.domain.item.PhysicalObservationCycle;
 import dev.worldecho.domain.item.PhysicalObservationReason;
+import dev.worldecho.domain.item.PhysicalObservationSequencer;
 import dev.worldecho.domain.item.PhysicalUniqueItemObservation;
 import dev.worldecho.domain.item.PhysicalUniqueItemObservationService;
 import dev.worldecho.domain.item.ReconciliationMetrics;
@@ -20,8 +22,6 @@ import org.bukkit.plugin.Plugin;
 
 import java.time.Instant;
 import java.util.UUID;
-import java.util.concurrent.Executor;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
 /**
@@ -35,9 +35,8 @@ public final class ItemDespawnListener implements Listener {
     private final ItemIdentityAdapter identityAdapter;
     private final PhysicalUniqueItemObservationService observationService;
     private final ReconciliationMetrics metrics;
-    private final Executor asyncExecutor;
-    private final AtomicLong observationSequenceCounter = new AtomicLong(0);
-    private final String serverSessionId;
+    private final BoundedPhysicalObservationQueue observationQueue;
+    private final PhysicalObservationSequencer sequencer;
 
     public ItemDespawnListener(
             Plugin plugin,
@@ -45,16 +44,16 @@ public final class ItemDespawnListener implements Listener {
             ItemIdentityAdapter identityAdapter,
             PhysicalUniqueItemObservationService observationService,
             ReconciliationMetrics metrics,
-            Executor asyncExecutor,
-            String serverSessionId
+            BoundedPhysicalObservationQueue observationQueue,
+            PhysicalObservationSequencer sequencer
     ) {
         this.plugin = plugin;
         this.settingsSupplier = settingsSupplier;
         this.identityAdapter = identityAdapter;
         this.observationService = observationService;
         this.metrics = metrics;
-        this.asyncExecutor = asyncExecutor;
-        this.serverSessionId = serverSessionId;
+        this.observationQueue = observationQueue;
+        this.sequencer = sequencer;
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
@@ -92,8 +91,7 @@ public final class ItemDespawnListener implements Listener {
         ContentKey contentKey = ContentKey.parse("minecraft:" + material);
         String contentFingerprint = material + ":" + itemStack.getAmount();
 
-        PhysicalObservationCycle cycle = PhysicalObservationCycle.create(
-                observationSequenceCounter.incrementAndGet(), serverSessionId);
+        PhysicalObservationCycle cycle = sequencer.nextCycle();
 
         PhysicalUniqueItemObservation observation = new PhysicalUniqueItemObservation(
                 itemId,
@@ -114,14 +112,7 @@ public final class ItemDespawnListener implements Listener {
     }
 
     private void submitObservation(PhysicalUniqueItemObservation observation) {
-        metrics.incrementPendingPhysical();
-        asyncExecutor.execute(() -> {
-            try {
-                observationService.process(observation);
-            } finally {
-                metrics.decrementPendingPhysical();
-            }
-        });
+        observationQueue.submit(observation, observationService);
     }
 
     private boolean isPhysicalTrackingEnabled(WorldEchoSettings settings) {

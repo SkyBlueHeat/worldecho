@@ -290,20 +290,20 @@
   `ItemSpawnEvent` (generic world-drop observation with identity assignment for
   untracked UNIQUE items)
 - `EntityItemOwnershipListener`: `EntityPickupItemEvent` for non-player living
-  entities (WORLD_DROP → ENTITY); `EntityDeathEvent` records terminal
-  SYSTEM:item-destroyed observation for equipped UNIQUE items not in death
-  drops; player pickups handled by existing reconciler
+  entities (WORLD_DROP → ENTITY); `EntityDeathEvent` logs a bounded warning for
+  equipped UNIQUE items not in death drops (no terminal transition written);
+  player pickups handled by existing reconciler
 - `ItemDespawnListener`: `ItemDespawnEvent` records terminal SYSTEM observation
 - `LoadedEntityReconciliationListener`: `EntitiesLoadEvent` reconciles loaded
   Item entities and entity equipment (main hand, off hand, armor slots)
 - `OwnershipSubject.worldDrop(UUID)`: factory for item-entity-UUID-based subjects
 - `OwnershipTransitionReason`: new `WORLD_DROP_OBSERVED`, `DESPAWNED` reasons
-- `ReconciliationMetrics`: 7 new physical tracking counters
-- `/worldecho status` now shows physical-tracking enabled flag and 7 physical
+- `ReconciliationMetrics`: 8 physical tracking counters (including rejected observations)
+- `/worldecho status` now shows physical-tracking enabled flag and 8 physical
   tracking metrics
 - Configuration: `items.physical-tracking.*` section with enable/disable and
   per-feature toggles (world-drops, entity-pickup, reconcile-loaded-entities,
-  item-despawn, debug-messages)
+  item-despawn, debug-messages, max-pending-capacity)
 - English and Turkish messages: 6 physical tracking keys (disabled, malformed
   identity, duplicate observation, stale rejected, persistence failure,
   unsupported subject)
@@ -312,3 +312,31 @@
   `OwnershipSubjectWorldDropUuidTest` (4), `PhysicalObservationIntegrationTest` (13)
 - `EntityItemOwnershipListener`: `EntityDeathEvent` records terminal SYSTEM:item-destroyed
   for equipped UNIQUE items not in death drops; unused variable removed
+
+### Fixed (0.3.2-SNAPSHOT — Sprint 0.3C1 blockers)
+
+- **Shared `PhysicalObservationSequencer`**: replaces per-listener `AtomicLong` counters
+  with a single plugin-lifetime component providing globally monotonic observation
+  sequences across all listeners. A later ENTITY observation can never have a lower
+  sequence than an earlier WORLD_DROP observation.
+- **Semantic idempotency**: `PhysicalUniqueItemObservation.semanticTransitionKey()` groups
+  observations representing the same physical ownership transition regardless of event
+  source. `PlayerDropItemEvent` (DROPPED) and `ItemSpawnEvent` (WORLD_DROP_OBSERVED) for
+  the same Item entity produce the same semantic key, so the second observation is treated
+  as an idempotent replay rather than a duplicate transition. CONFLICT results with the
+  same current subject are treated as idempotent replays.
+- **Removed premature SYSTEM:item-destroyed**: `EntityDeathEvent` no longer writes a
+  terminal SYSTEM transition for equipped UNIQUE items absent from death drops. A bounded
+  warning is logged and a metric is incremented instead. Terminal SYSTEM observations
+  are deferred until explicit death-drop correlation exists.
+- **Bounded pending work**: `BoundedPhysicalObservationQueue` with configurable capacity
+  (`items.physical-tracking.max-pending-capacity`, default 256) replaces unbounded
+  `Executor` submission. Rejected observations increment `rejectedPhysicalObservations`
+  metric and log a warning. Shutdown drains the queue within the configured timeout.
+- **New metrics**: `rejectedPhysicalObservations` counter added to `ReconciliationMetrics`,
+  shown in `/worldecho status` and shutdown log.
+- **New config**: `items.physical-tracking.max-pending-capacity` (16–10000, default 256).
+- New tests: `PhysicalObservationSequencerTest` (5), `BoundedPhysicalObservationQueueTest` (4),
+  `PhysicalUniqueItemObservationTest` semantic key tests (4),
+  `PhysicalObservationIntegrationTest` concurrent test (1).
+- Total: 461 tests, 0 failures, 0 skipped.

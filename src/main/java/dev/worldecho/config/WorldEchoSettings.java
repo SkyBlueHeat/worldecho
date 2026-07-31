@@ -36,7 +36,8 @@ public record WorldEchoSettings(
         boolean physicalTrackingEntityPickup,
         boolean physicalTrackingReconcileLoadedEntities,
         boolean physicalTrackingItemDespawn,
-        boolean physicalTrackingDebugMessages
+        boolean physicalTrackingDebugMessages,
+        int physicalTrackingMaxPendingCapacity
 ) {
 
     public WorldEchoSettings {
@@ -59,6 +60,7 @@ public record WorldEchoSettings(
         recentMaximumCount = Math.max(recentDefaultCount, recentMaximumCount);
         itemHistoryDefaultLimit = Math.max(1, itemHistoryDefaultLimit);
         itemHistoryMaximumLimit = Math.max(itemHistoryDefaultLimit, itemHistoryMaximumLimit);
+        physicalTrackingMaxPendingCapacity = Math.max(16, physicalTrackingMaxPendingCapacity);
     }
 
     public static WorldEchoSettings defaults() {
