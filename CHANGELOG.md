@@ -246,3 +246,25 @@
   idempotency, split/merge preservation, acquisition/consumption, display name independence,
   restart safety, malformed isolation, negative amount guard.
 - `SchemaMigratorTest`: updated for v4 migration assertions (new indexes, schema version 4).
+
+### Gap fix 4 (0.3.1-SNAPSHOT)
+
+- **UNIQUE database invariant restored**: `idx_tracked_lots_owner_fp_unique` is now a
+  `UNIQUE INDEX` on `(owner_type, owner_stable_id, fingerprint)`, enforced at the database
+  level. `findByOwnerAndFingerprint` never returns ambiguous duplicates.
+- **Migration v4 backfill**: correctly parses `player:UUID` from `created_by_subject` using
+  `substr(created_by_subject, 8)`. Non-`player:` subjects fall back to empty owner fields.
+  Duplicate legacy rows for the same `(owner_type, owner_stable_id, fingerprint)` are
+  deterministically resolved before UNIQUE index creation: the row with the latest
+  `last_seen_at` (then `created_at`) is kept; duplicates are deleted.
+- **Atomic `reconcileOwnerAggregates`**: new repository operation that performs all LOT
+  snapshot updates for a single owner in one transaction — upserts observed fingerprints,
+  zeros absent ones, updates display snapshot. Rolls back on any SQL failure.
+- **`AutomaticItemIdentityService` refactored**: `processLotSlots` now calls
+  `reconcileOwnerAggregates` instead of individual find/create/update/zero calls. Zeroing
+  failures are no longer silently swallowed — they return structured `PERSISTENCE_FAILURE`
+  results with error messages.
+- **`LotSplitMergeTest` updated**: split/merge fixtures use different owners for parent and
+  child lots to comply with the UNIQUE constraint.
+- New tests: `MigrationV4BackfillTest` (11 tests), `ReconcileOwnerAggregatesTest` (9 tests).
+- Total: 383 tests, 0 failures, 0 skipped.

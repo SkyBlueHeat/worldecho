@@ -46,7 +46,9 @@ Requires JDK 25. The wrapper pins Gradle 9.6.1.
 | `LotSplitMergeTest` | Split lineage, idempotency, quantity preservation, no ownership transfer; merge lineage, idempotency, quantity preservation, no ownership transfer; incompatible lots differ; owner-scoped lookup: different players same fingerprint get different lots, same player reuses lot, unknown owner returns empty |
 | `ItemIdentityAdapterTest` | Identity resolution: missing, existing, malformed, uppercase UUID, stability across reads |
 | `ReconciliationTest` | Snapshot conflicts produce diagnostics, missing DB rows reconciled with existing IDs |
-| `SchemaMigratorTest` (v3+v4) | Lot tables and indexes created in v3 migration; v4 adds owner scope columns and indexes; v0/v1/v2 → latest; rerun idempotent |
+| `SchemaMigratorTest` (v3+v4) | Lot tables and indexes created in v3 migration; v4 adds owner scope columns, backfills from `created_by_subject`, resolves duplicate legacy rows, creates UNIQUE index; v0/v1/v2 → latest; rerun idempotent |
+| `MigrationV4BackfillTest` | V3→V4 backfill: valid player subject, separator-safe UUID, malformed fallback, duplicate resolution, amount/timestamp/lotId/ledger preservation, idempotent rerun |
+| `ReconcileOwnerAggregatesTest` | Atomic reconcile: create new lot, update amount, zero absent fingerprints, no double-zero, idempotent repeat, display snapshot update, no ambiguous duplicates, multi-fingerprint atomic, empty map zeros all |
 
 `shadowJar` is finalized by `shadowJarSmokeTest`, which opens a real SQLite database using
 **only** the shaded JAR. Unit tests run against the un-shadowed classpath, so they cannot

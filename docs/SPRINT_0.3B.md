@@ -73,7 +73,11 @@ Adds stable owner scope columns to `tracked_item_lots`:
 - `owner_stable_id` — stable owner identifier (UUID for players)
 - `owner_display_snapshot` — display name at last observation
 
-Backfills owner data from existing `created_by_subject` column. Adds indexes `idx_tracked_lots_owner_fp` and `idx_tracked_lots_owner_fp_unique` on `(owner_type, owner_stable_id, fingerprint)` for efficient owner-scoped lot lookup.
+Backfills owner data from existing `created_by_subject` column using `substr(created_by_subject, 8)` to extract the UUID from the `player:UUID` format. Non-`player:` subjects are left with empty owner fields (documented fallback). Before creating the UNIQUE index, duplicate legacy rows for the same `(owner_type, owner_stable_id, fingerprint)` are deterministically resolved: the row with the latest `last_seen_at` (then `created_at`) is kept as canonical; duplicates are deleted.
+
+**Database invariant**: `UNIQUE(owner_type, owner_stable_id, fingerprint)` — enforced at the database level via `idx_tracked_lots_owner_fp_unique`. This guarantees that `findByOwnerAndFingerprint` never returns ambiguous duplicates. The aggregation service relies on this invariant; no two rows with the same owner+fingerprint can coexist.
+
+Adds indexes `idx_tracked_lots_owner_fp` (non-unique, for range scans) and `idx_tracked_lots_owner_fp_unique` (UNIQUE, for invariant enforcement) on `(owner_type, owner_stable_id, fingerprint)`.
 
 ## New Paper-layer types
 
@@ -146,13 +150,13 @@ On shutdown, the scheduler rejects new reconciliation requests, cancels pending 
 
 ## Tests
 
-- Test count: see build output for exact count
-- New tests: `ItemIdentityPolicyTest` (14), `LotCompatibilityFingerprintTest` (7), `ReconciliationCycleTest` (4), `ReconciliationMetricsTest` (4), `DuplicateObservationRegistryTest` (5), `ReconciliationSchedulerStateTest` (9), `TransformationDecisionTest` (22), `ReconciliationPlanGeneratorTest` (9), `SlotSnapshotComparatorTest` (10), `TrackedItemLotRepositoryTest` (8), `AutomaticItemIdentityServiceTest` (25), `LotSplitMergeTest` (13), `SchemaMigratorTest` +1 v3 test +1 v4 test, `BundledResourcesTest` +18 new message key checks
+- Test count: 383 tests, 0 failures, 0 skipped
+- New tests: `ItemIdentityPolicyTest` (14), `LotCompatibilityFingerprintTest` (7), `ReconciliationCycleTest` (4), `ReconciliationMetricsTest` (4), `DuplicateObservationRegistryTest` (5), `ReconciliationSchedulerStateTest` (9), `TransformationDecisionTest` (22), `ReconciliationPlanGeneratorTest` (9), `SlotSnapshotComparatorTest` (10), `TrackedItemLotRepositoryTest` (8), `AutomaticItemIdentityServiceTest` (25), `LotSplitMergeTest` (13), `SchemaMigratorTest` (6), `MigrationV4BackfillTest` (11), `ReconcileOwnerAggregatesTest` (9), `BundledResourcesTest` +18 new message key checks
 
 ## Known limitations
 
 - Duplicate observation detection is in-memory only and per-session; it does not persist across restarts
-- LOT items do not receive PDC metadata; lot identity is owner-scoped and resolved by stable owner ID (UUID) + fingerprint at reconciliation time. Physical split/merge lineage is not tracked by automatic tracking.
-- Lot amount is the sum of all observed stacks with the same fingerprint for that owner in a single reconciliation cycle. Existing lots whose fingerprint is absent from the snapshot are zeroed. Concurrent inventory modifications may produce stale amounts until the next reconciliation cycle.
+- LOT items do not receive PDC metadata; lot identity is owner-scoped and resolved by stable owner ID (UUID) + fingerprint at reconciliation time. The database enforces `UNIQUE(owner_type, owner_stable_id, fingerprint)` — one lot per owner per fingerprint. Physical split/merge lineage (`lot_lineage` table) is a schema-only feature; it is not populated by automatic tracking.
+- Lot amount is the sum of all observed stacks with the same fingerprint for that owner in a single reconciliation cycle. Reconciliation is atomic: upsert, zeroing, and display snapshot update happen in a single transaction via `reconcileOwnerAggregates`. If any SQL operation fails, the entire transaction rolls back and the service returns structured `PERSISTENCE_FAILURE` results (no silent exception swallowing). Concurrent inventory modifications may produce stale amounts until the next reconciliation cycle.
 - Transformation identity continuity covers anvil, smithing table, and grindstone; other crafting mechanics (crafting table, stonecutter) produce items with new identities
 - Headless Paper 26.2 verification (schema migration, status, reload, shutdown) not performed — requires a running Paper server

@@ -206,11 +206,27 @@ public final class SchemaMigrator {
                     WHERE created_by_subject LIKE 'player:%'
                     """,
                     """
+                    DELETE FROM tracked_item_lots
+                    WHERE lot_id NOT IN (
+                        SELECT lot_id FROM (
+                            SELECT lot_id,
+                                   ROW_NUMBER() OVER (
+                                       PARTITION BY owner_type, owner_stable_id, fingerprint
+                                       ORDER BY last_seen_at DESC, created_at DESC
+                                   ) AS rn
+                            FROM tracked_item_lots
+                            WHERE owner_type != '' AND owner_stable_id != ''
+                        ) ranked
+                        WHERE ranked.rn = 1
+                    )
+                    AND owner_type != '' AND owner_stable_id != ''
+                    """,
+                    """
                     CREATE INDEX IF NOT EXISTS idx_tracked_lots_owner_fp
                     ON tracked_item_lots(owner_type, owner_stable_id, fingerprint)
                     """,
                     """
-                    CREATE INDEX IF NOT EXISTS idx_tracked_lots_owner_fp_unique
+                    CREATE UNIQUE INDEX IF NOT EXISTS idx_tracked_lots_owner_fp_unique
                     ON tracked_item_lots(owner_type, owner_stable_id, fingerprint)
                     """
             ))

@@ -647,6 +647,78 @@ class AutomaticItemIdentityServiceTest {
     private static class FakeLotRepo implements TrackedItemLotRepository {
         final Map<TrackedItemLotId, TrackedItemLot> lots = new HashMap<>();
         final List<LotLineageEntry> lineage = new ArrayList<>();
+        boolean failReconcile = false;
+
+        @Override
+        public ReconcileResult reconcileOwnerAggregates(
+                OwnershipSubjectType ownerType,
+                String ownerStableId,
+                String ownerDisplaySnapshot,
+                Map<LotCompatibilityFingerprint, Integer> observedAmountsByFingerprint,
+                Instant observedAt
+        ) {
+            if (failReconcile) {
+                return ReconcileResult.FAILURE;
+            }
+            String typeToken = ownerType.token();
+            String normalizedStableId = ownerStableId.toLowerCase(java.util.Locale.ROOT);
+
+            // Snapshot current state for potential rollback
+            Map<TrackedItemLotId, TrackedItemLot> snapshot = new HashMap<>(lots);
+
+            try {
+                java.util.Set<String> observedFingerprints = new java.util.HashSet<>();
+
+                // Upsert observed fingerprints
+                for (Map.Entry<LotCompatibilityFingerprint, Integer> entry : observedAmountsByFingerprint.entrySet()) {
+                    String fpSerialized = entry.getKey().serialize();
+                    int totalAmount = Math.max(0, entry.getValue());
+                    observedFingerprints.add(fpSerialized);
+
+                    Optional<TrackedItemLot> existing = lots.values().stream()
+                            .filter(l -> l.ownerType().equals(typeToken)
+                                    && l.ownerStableId().equals(normalizedStableId)
+                                    && l.fingerprint().equals(entry.getKey()))
+                            .findFirst();
+
+                    if (existing.isPresent()) {
+                        TrackedItemLot lot = existing.get();
+                        lots.put(lot.lotId(), lot.withCurrentAmount(totalAmount).withLastSeenAt(observedAt)
+                                .withOwnerDisplaySnapshot(ownerDisplaySnapshot));
+                    } else {
+                        TrackedItemLotId newLotId = TrackedItemLotId.random();
+                        TrackedItemLot lot = new TrackedItemLot(
+                                newLotId, observedAt, observedAt, observedAt,
+                                new ContentKey(entry.getKey().providerId(), entry.getKey().material()),
+                                entry.getKey().providerId(),
+                                entry.getKey().material(),
+                                entry.getKey(),
+                                totalAmount, totalAmount, "AUTOMATIC",
+                                typeToken + ":" + normalizedStableId,
+                                typeToken, normalizedStableId, ownerDisplaySnapshot
+                        );
+                        lots.put(newLotId, lot);
+                    }
+                }
+
+                // Zero absent fingerprints
+                for (TrackedItemLot lot : lots.values()) {
+                    if (lot.ownerType().equals(typeToken)
+                            && lot.ownerStableId().equals(normalizedStableId)
+                            && lot.currentAmount() > 0
+                            && !observedFingerprints.contains(lot.fingerprint().serialize())) {
+                        lots.put(lot.lotId(), lot.withCurrentAmount(0).withLastSeenAt(observedAt));
+                    }
+                }
+
+                return ReconcileResult.SUCCESS;
+            } catch (Exception e) {
+                // Rollback
+                lots.clear();
+                lots.putAll(snapshot);
+                return ReconcileResult.FAILURE;
+            }
+        }
 
         @Override
         public CreateResult create(TrackedItemLot lot) throws SQLException {

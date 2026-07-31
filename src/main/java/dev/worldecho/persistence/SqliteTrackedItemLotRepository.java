@@ -3,6 +3,7 @@ package dev.worldecho.persistence;
 import dev.worldecho.domain.item.LotCompatibilityFingerprint;
 import dev.worldecho.domain.item.LotLineageEntry;
 import dev.worldecho.domain.item.LotRelationType;
+import dev.worldecho.domain.item.OwnershipSubjectType;
 import dev.worldecho.domain.item.TrackedItemLot;
 import dev.worldecho.domain.item.TrackedItemLotId;
 
@@ -13,9 +14,8 @@ import java.sql.SQLException;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
-
-import dev.worldecho.domain.item.OwnershipSubjectType;
 
 public final class SqliteTrackedItemLotRepository implements TrackedItemLotRepository {
 
@@ -51,6 +51,117 @@ public final class SqliteTrackedItemLotRepository implements TrackedItemLotRepos
             statement.setString(15, lot.ownerDisplaySnapshot());
             int rows = statement.executeUpdate();
             return rows > 0 ? CreateResult.CREATED : CreateResult.ALREADY_EXISTS;
+        }
+    }
+
+    @Override
+    public ReconcileResult reconcileOwnerAggregates(
+            OwnershipSubjectType ownerType,
+            String ownerStableId,
+            String ownerDisplaySnapshot,
+            Map<LotCompatibilityFingerprint, Integer> observedAmountsByFingerprint,
+            Instant observedAt
+    ) {
+        String typeToken = ownerType.token();
+        String normalizedStableId = ownerStableId.toLowerCase(java.util.Locale.ROOT);
+        long observedEpochMilli = observedAt.toEpochMilli();
+        java.util.Set<String> observedFingerprints = new java.util.HashSet<>();
+
+        try (Connection connection = databaseManager.openConnection()) {
+            boolean autoCommit = connection.getAutoCommit();
+            connection.setAutoCommit(false);
+            try {
+                // 1. Upsert each observed fingerprint+amount
+                for (Map.Entry<LotCompatibilityFingerprint, Integer> entry : observedAmountsByFingerprint.entrySet()) {
+                    String fpSerialized = entry.getKey().serialize();
+                    int totalAmount = Math.max(0, entry.getValue());
+                    observedFingerprints.add(fpSerialized);
+
+                    // Check if lot exists for this owner+fingerprint
+                    try (PreparedStatement findStmt = connection.prepareStatement(
+                            "SELECT lot_id, current_amount, owner_display_snapshot FROM tracked_item_lots "
+                                    + "WHERE owner_type = ? AND owner_stable_id = ? AND fingerprint = ?")) {
+                        findStmt.setString(1, typeToken);
+                        findStmt.setString(2, normalizedStableId);
+                        findStmt.setString(3, fpSerialized);
+                        try (ResultSet rs = findStmt.executeQuery()) {
+                            if (rs.next()) {
+                                // Update existing lot
+                                String lotId = rs.getString("lot_id");
+                                try (PreparedStatement updateStmt = connection.prepareStatement(
+                                        "UPDATE tracked_item_lots SET current_amount = ?, last_seen_at = ?, "
+                                                + "owner_display_snapshot = ? WHERE lot_id = ?")) {
+                                    updateStmt.setInt(1, totalAmount);
+                                    updateStmt.setLong(2, observedEpochMilli);
+                                    updateStmt.setString(3, ownerDisplaySnapshot == null ? "" : ownerDisplaySnapshot);
+                                    updateStmt.setString(4, lotId);
+                                    updateStmt.executeUpdate();
+                                }
+                            } else {
+                                // Create new lot
+                                String newLotId = java.util.UUID.randomUUID().toString();
+                                try (PreparedStatement insertStmt = connection.prepareStatement(
+                                        "INSERT OR IGNORE INTO tracked_item_lots "
+                                                + "(lot_id, created_at, first_seen_at, last_seen_at, content_key, "
+                                                + "provider_id, material, fingerprint, initial_amount, current_amount, "
+                                                + "tracking_reason, created_by_subject, owner_type, owner_stable_id, owner_display_snapshot) "
+                                                + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")) {
+                                    insertStmt.setString(1, newLotId);
+                                    insertStmt.setLong(2, observedEpochMilli);
+                                    insertStmt.setLong(3, observedEpochMilli);
+                                    insertStmt.setLong(4, observedEpochMilli);
+                                    insertStmt.setString(5, entry.getKey().contentKeyId().isEmpty()
+                                            ? typeToken + ":" + entry.getKey().material()
+                                            : entry.getKey().contentKeyId());
+                                    insertStmt.setString(6, entry.getKey().providerId());
+                                    insertStmt.setString(7, entry.getKey().material());
+                                    insertStmt.setString(8, fpSerialized);
+                                    insertStmt.setInt(9, totalAmount);
+                                    insertStmt.setInt(10, totalAmount);
+                                    insertStmt.setString(11, "AUTOMATIC");
+                                    insertStmt.setString(12, typeToken + ":" + normalizedStableId);
+                                    insertStmt.setString(13, typeToken);
+                                    insertStmt.setString(14, normalizedStableId);
+                                    insertStmt.setString(15, ownerDisplaySnapshot == null ? "" : ownerDisplaySnapshot);
+                                    insertStmt.executeUpdate();
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // 2. Zero out existing lots for this owner whose fingerprint is absent from snapshot
+                try (PreparedStatement findAbsentStmt = connection.prepareStatement(
+                        "SELECT lot_id, fingerprint FROM tracked_item_lots "
+                                + "WHERE owner_type = ? AND owner_stable_id = ? AND current_amount > 0")) {
+                    findAbsentStmt.setString(1, typeToken);
+                    findAbsentStmt.setString(2, normalizedStableId);
+                    try (ResultSet rs = findAbsentStmt.executeQuery()) {
+                        while (rs.next()) {
+                            String lotId = rs.getString("lot_id");
+                            String fp = rs.getString("fingerprint");
+                            if (!observedFingerprints.contains(fp)) {
+                                try (PreparedStatement zeroStmt = connection.prepareStatement(
+                                        "UPDATE tracked_item_lots SET current_amount = 0, last_seen_at = ? WHERE lot_id = ?")) {
+                                    zeroStmt.setLong(1, observedEpochMilli);
+                                    zeroStmt.setString(2, lotId);
+                                    zeroStmt.executeUpdate();
+                                }
+                            }
+                        }
+                    }
+                }
+
+                connection.commit();
+                return ReconcileResult.SUCCESS;
+            } catch (SQLException e) {
+                connection.rollback();
+                return ReconcileResult.FAILURE;
+            } finally {
+                connection.setAutoCommit(autoCommit);
+            }
+        } catch (SQLException e) {
+            return ReconcileResult.FAILURE;
         }
     }
 

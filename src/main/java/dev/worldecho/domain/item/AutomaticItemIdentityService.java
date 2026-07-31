@@ -103,8 +103,9 @@ public final class AutomaticItemIdentityService {
      * Processes all LOT slots in a snapshot as a single aggregation unit.
      *
      * <p>Groups LOT slots by fingerprint, sums amounts per group, and performs
-     * one persistence update per owner+fingerprint per cycle. Existing lots
-     * whose fingerprint is absent from the snapshot are zeroed.
+     * one atomic transaction per owner per cycle: upserts observed fingerprints,
+     * zeros absent ones, and updates the display snapshot. No partial state
+     * is left if any SQL operation fails.
      *
      * @return list of results, one per input LOT slot (for metrics)
      */
@@ -149,17 +150,40 @@ public final class AutomaticItemIdentityService {
             representativeSlots.putIfAbsent(fingerprint, slot);
         }
 
-        // Process each fingerprint group: one update per owner+fingerprint
+        // Perform atomic reconciliation: upsert + zero in one transaction
+        String ownerStableId = playerUuid.toString();
+        TrackedItemLotRepository.ReconcileResult reconcileResult = lotRepository.reconcileOwnerAggregates(
+                OwnershipSubjectType.PLAYER,
+                ownerStableId,
+                playerDisplayName,
+                aggregatedAmounts,
+                Instant.now(clock)
+        );
+
+        if (reconcileResult == TrackedItemLotRepository.ReconcileResult.FAILURE) {
+            // Report structured failure for each representative slot
+            for (Map.Entry<LotCompatibilityFingerprint, ObservedInventorySlot> entry : representativeSlots.entrySet()) {
+                results.add(SlotProcessResult.persistenceFailure(
+                        entry.getValue(), "reconcileOwnerAggregates transaction failed"));
+            }
+            return results;
+        }
+
+        // Success: record ownership transitions for each fingerprint group
         for (Map.Entry<LotCompatibilityFingerprint, Integer> entry : aggregatedAmounts.entrySet()) {
             LotCompatibilityFingerprint fingerprint = entry.getKey();
-            int totalAmount = Math.max(0, entry.getValue());
             ObservedInventorySlot repSlot = representativeSlots.get(fingerprint);
 
             try {
-                TrackedItemLotId lotId = findOrCreateOrUpdateLot(
-                        repSlot, fingerprint, totalAmount,
-                        playerUuid, playerDisplayName);
+                Optional<TrackedItemLot> lot = lotRepository.findByOwnerAndFingerprint(
+                        OwnershipSubjectType.PLAYER, ownerStableId, fingerprint);
+                if (lot.isEmpty()) {
+                    results.add(SlotProcessResult.persistenceFailure(repSlot,
+                            "Lot not found after successful reconciliation"));
+                    continue;
+                }
 
+                TrackedItemLotId lotId = lot.get().lotId();
                 OwnershipSubject playerSubject = OwnershipSubject.player(playerUuid, playerDisplayName);
                 String idempotencyKey = cycle.idempotencyKeyFor(lotId);
                 OwnershipResult ownershipResult = lotOwnershipTransitionService.transition(
@@ -176,73 +200,6 @@ public final class AutomaticItemIdentityService {
             }
         }
 
-        // Zero out existing lots whose fingerprint is absent from snapshot
-        try {
-            zeroAbsentLots(aggregatedAmounts.keySet(), playerUuid, playerDisplayName, cycle);
-        } catch (Exception ignored) {
-            // Best-effort zeroing; don't fail the cycle for this
-        }
-
         return results;
-    }
-
-    private TrackedItemLotId findOrCreateOrUpdateLot(
-            ObservedInventorySlot slot,
-            LotCompatibilityFingerprint fingerprint,
-            int totalAmount,
-            UUID playerUuid,
-            String playerDisplayName
-    ) throws Exception {
-        String ownerStableId = playerUuid.toString();
-        Optional<TrackedItemLot> existing = lotRepository.findByOwnerAndFingerprint(
-                OwnershipSubjectType.PLAYER, ownerStableId, fingerprint);
-
-        if (existing.isPresent()) {
-            TrackedItemLot lot = existing.get();
-            lotRepository.observe(lot.lotId(), Instant.now(clock));
-            lotRepository.updateAmount(lot.lotId(), totalAmount);
-            if (!playerDisplayName.isEmpty() && !playerDisplayName.equals(lot.ownerDisplaySnapshot())) {
-                lotRepository.updateOwnerDisplaySnapshot(lot.lotId(), playerDisplayName);
-            }
-            return lot.lotId();
-        }
-
-        TrackedItemLotId newLotId = TrackedItemLotId.random();
-        Instant now = Instant.now(clock);
-        String ownerSubject = OwnershipSubject.player(playerUuid, playerDisplayName).describe();
-        TrackedItemLot lot = new TrackedItemLot(
-                newLotId, now, now, now,
-                slot.contentKey(),
-                slot.providerId(),
-                slot.material(),
-                fingerprint,
-                totalAmount,
-                totalAmount,
-                "AUTOMATIC",
-                ownerSubject,
-                OwnershipSubjectType.PLAYER.token(),
-                ownerStableId,
-                playerDisplayName
-        );
-        lotRepository.create(lot);
-        return newLotId;
-    }
-
-    private void zeroAbsentLots(
-            java.util.Set<LotCompatibilityFingerprint> seenFingerprints,
-            UUID playerUuid,
-            String playerDisplayName,
-            ReconciliationCycle cycle
-    ) throws Exception {
-        String ownerStableId = playerUuid.toString();
-        List<TrackedItemLot> ownerLots = lotRepository.findAllByOwner(
-                OwnershipSubjectType.PLAYER, ownerStableId);
-
-        for (TrackedItemLot lot : ownerLots) {
-            if (!seenFingerprints.contains(lot.fingerprint()) && lot.currentAmount() > 0) {
-                lotRepository.observe(lot.lotId(), Instant.now(clock));
-                lotRepository.updateAmount(lot.lotId(), 0);
-            }
-        }
     }
 }
