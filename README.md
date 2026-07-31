@@ -8,9 +8,12 @@ The server owner supplies content through plugins such as MythicMobs, Oraxen, It
 
 ## Status
 
-This repository implements **Sprint 0.3A — Item Identity and Ownership Ledger**, adding
-persistent item identity via Paper's PDC and an append-only ownership ledger on top of
-the Sprint 0.2B eligibility diagnostics.
+This repository implements **Sprint 0.3B — Automatic Player Inventory Identity & Ownership
+Synchronization**, building on Sprint 0.3A's persistent item identity and ownership ledger
+and Sprint 0.2B's eligibility diagnostics.
+
+WorldEcho automatically identifies and records items entering active player inventories.
+Normal players and server administrators are not expected to manually track items.
 
 The implemented vertical slice is:
 
@@ -43,8 +46,8 @@ Current foundation:
   persistence, content bindings, eligibility, item identity, ownership ledger, and the
   shipped resources
 
-Not implemented yet (Sprint 0.3B and later): automatic ownership tracking on pickup/drop,
-captains, factions, rumors, story generation, and external content bridges.
+Not implemented yet (Sprint 0.3C and later): world-drop tracking, container ownership,
+mob equipment, story generation, rival generation, factions, and external content bridges.
 
 ## Core product rule
 
@@ -80,20 +83,23 @@ installed.
 
 All subcommands require the `worldecho.admin` permission (default: op). Item subcommands
 also require their respective permissions: `worldecho.item.inspect`, `worldecho.item.track`,
-`worldecho.item.history`, `worldecho.item.assign`.
+`worldecho.item.history`, `worldecho.item.assign`, `worldecho.item.reconcile`,
+`worldecho.item.policy`.
 
 | Command | Description |
 | --- | --- |
-| `/worldecho status` | Version, locale, queue counters, providers, database health, schema version, event count, tracked-items, ledger-entries |
+| `/worldecho status` | Version, locale, queue counters, providers, database health, schema version, event count, tracked-items, ledger-entries, automatic tracking metrics |
 | `/worldecho recent [count]` | Most recent memories, read off the server thread |
 | `/worldecho inspect item` | Provider, content ID, roles, capabilities, binding metadata, score breakdown, and ownership data of the held item |
 | `/worldecho inspect entity` | Provider, content ID, roles, capabilities, and binding metadata of the entity you are looking at |
 | `/worldecho reload` | Re-reads `config.yml`, `bindings.yml`, and the message files |
-| `/worldecho item track` | Assign a WorldEcho ID to the held item and create a persistence record |
+| `/worldecho item track` | **Diagnostic/repair tool.** Assign a WorldEcho ID to the held item and create a persistence record. Automatic tracking handles items without commands. |
 | `/worldecho item inspect` | Show tracked status, item ID, content key, material, current owner, and history count |
 | `/worldecho item owner <item-id>` | Show current ownership state for a tracked item |
 | `/worldecho item history <item-id> [count]` | Show ownership history entries in descending sequence order |
-| `/worldecho item assign-owner <item-id> player\|entity\|system <id>` | Administratively assign ownership without moving the physical item |
+| `/worldecho item assign-owner <item-id> player\|entity\|system <id>` | **Administrative repair tool.** Assign ownership without moving the physical item. Future physical inventory reconciliation may correct ledger ownership back to observed reality. |
+| `/worldecho item reconcile [player]` | Trigger manual inventory reconciliation for diagnostics and recovery |
+| `/worldecho item policy` | Show identity classification mode, reasons, confidence, and lot compatibility for the held item |
 
 ## Documentation
 
@@ -101,6 +107,7 @@ also require their respective permissions: `worldecho.item.inspect`, `worldecho.
 - `docs/PRODUCT_SPEC.md` — complete product direction
 - `docs/ARCHITECTURE.md` — target architecture
 - `docs/SPRINT_0.3A.md` — Sprint 0.3A item identity and ownership ledger details
+- `docs/SPRINT_0.3B.md` — Sprint 0.3B automatic player inventory tracking details
 - `docs/SPRINT_1.md` — first implementation slice
 - `docs/ROADMAP.md` — staged delivery plan
 - `docs/CONFIGURATION.md` — every configuration key and the scoring formula

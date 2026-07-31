@@ -71,7 +71,15 @@ class BundledResourcesTest {
                 "item-owner-header", "item-assign-success", "item-assign-invalid-uuid",
                 "item-assign-invalid-subject", "item-assign-not-tracked", "item-assign-failed",
                 "item-console-requires-id", "item-player-held-required",
-                "item-database-failed", "item-invalid-id", "item-history-limit-clamped")) {
+                "item-database-failed", "item-invalid-id", "item-history-limit-clamped",
+                "item-reconcile-usage", "item-reconcile-started", "item-reconcile-completed",
+                "item-player-not-found", "item-reconcile-console-usage",
+                "item-policy-header", "item-policy-mode", "item-policy-existing",
+                "item-policy-reasons", "item-policy-confidence", "item-policy-lot-fingerprint",
+                "item-policy-no-item", "item-policy-unique", "item-policy-lot",
+                "item-policy-yes", "item-policy-no", "item-policy-none",
+                "item-track-diagnostic", "item-malformed-identity", "item-duplicate-identity",
+                "item-persistence-failure", "item-automatic-tracking-disabled")) {
             assertTrue(english.isString(key), () -> "missing message key: " + key);
         }
     }

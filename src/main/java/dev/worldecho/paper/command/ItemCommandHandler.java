@@ -283,9 +283,11 @@ public final class ItemCommandHandler {
                             || result.status() == OwnershipResultStatus.IDEMPOTENT_REPLAY) {
                         messages().send(player, "item-track-success",
                                 Map.of("item-id", itemId.toString()));
+                        messages().send(player, "item-track-diagnostic");
                     } else if (result.status() == OwnershipResultStatus.NO_CHANGE) {
                         messages().send(player, "item-already-tracked",
                                 Map.of("item-id", itemId.toString()));
+                        messages().send(player, "item-track-diagnostic");
                     } else {
                         messages().send(player, "item-track-failed");
                     }
@@ -666,14 +668,19 @@ public final class ItemCommandHandler {
 
         ItemStack item = player.getInventory().getItemInMainHand();
         if (item.getType().isAir()) {
-            messages().send(player, "item-missing");
+            messages().send(player, "item-policy-no-item");
             return;
         }
 
+        messages().send(player, "item-policy-header");
+
         ItemIdentityAdapter.IdentityResult identity = identityAdapter.readIdentity(item);
-        line(player, "worldecho.identity-status", identity.status().name().toLowerCase(Locale.ROOT));
         if (identity.status() == ItemIdentityAdapter.IdentityStatus.EXISTING) {
-            line(player, "worldecho.item-id", identity.itemId().toString());
+            messages().send(player, "item-policy-existing",
+                    Map.of("existing", identity.itemId().toString()));
+        } else {
+            messages().send(player, "item-policy-existing",
+                    Map.of("existing", messages().raw(player, "item-policy-none")));
         }
 
         ItemDescriptor descriptor = BukkitItems.describe(item, "minecraft");
@@ -690,24 +697,27 @@ public final class ItemCommandHandler {
                 .build();
 
         IdentityClassificationResult classification = ItemIdentityPolicy.classify(observed);
-        line(player, "worldecho.identity-mode", classification.mode().name().toLowerCase(Locale.ROOT));
-        line(player, "worldecho.classification-confidence",
-                String.format(Locale.ROOT, "%.2f", classification.confidence()));
-        for (String reason : classification.reasons()) {
-            line(player, "worldecho.classification-reason", reason);
-        }
+        String modeKey = classification.isUnique() ? "item-policy-unique" : "item-policy-lot";
+        messages().send(player, "item-policy-mode",
+                Map.of("mode", messages().raw(player, modeKey)));
+        messages().send(player, "item-policy-confidence",
+                Map.of("confidence", String.format(Locale.ROOT, "%.2f", classification.confidence())));
+        messages().send(player, "item-policy-reasons",
+                Map.of("reasons", String.join(", ", classification.reasons())));
 
-        if (classification.isLot() && descriptor.enchantments().isEmpty()) {
+        if (classification.isLot()) {
             LotCompatibilityFingerprint fingerprint = LotCompatibilityFingerprint.builder()
                     .providerId("minecraft")
                     .material(descriptor.materialKey())
                     .damageValue(descriptor.damage())
                     .build();
-            line(player, "worldecho.lot-fingerprint", fingerprint.serialize());
+            messages().send(player, "item-policy-lot-fingerprint",
+                    Map.of("fingerprint", fingerprint.serialize()));
         }
 
-        line(player, "worldecho.automatic-tracking",
-                settingsSupplier.get().automaticTrackingEnabled() ? "enabled" : "disabled");
+        String trackingKey = settingsSupplier.get().automaticTrackingEnabled()
+                ? "item-policy-yes" : "item-policy-no";
+        line(player, "automatic-tracking", messages().raw(player, trackingKey));
     }
 
     private void line(CommandSender sender, String key, String value) {

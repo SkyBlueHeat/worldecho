@@ -37,7 +37,13 @@ dev.worldecho.domain.item
   Item identity and ownership domain: TrackedItemId, OwnershipSubject,
   OwnershipSubjectType, OwnershipTransitionReason, TrackedItemRecord,
   OwnershipLedgerEntry, OwnershipState, OwnershipResult, OwnershipResultStatus,
-  OwnershipTransitionService. No Bukkit imports.
+  OwnershipTransitionService, IdentityMode, ObservedItemDescriptor,
+  IdentityClassificationResult, ItemIdentityPolicy, LotCompatibilityFingerprint,
+  TrackedItemLot, TrackedItemLotId, LotLineageEntry, LotRelationType,
+  LotOwnershipLedgerEntry, LotOwnershipState, LotOwnershipTransitionService,
+  AutomaticItemIdentityService, ReconciliationCycle, ObservedInventorySlot,
+  ObservedInventorySnapshot, SlotProcessResult, ReconciliationMetrics,
+  DuplicateObservationRegistry. No Bukkit imports.
 
 dev.worldecho.application
   Use cases: record memory, generate candidate, create story, schedule consequence,
@@ -45,7 +51,8 @@ dev.worldecho.application
 
 dev.worldecho.persistence
   Repository interfaces, SQLite implementations, schema migrations, write queue.
-  Includes TrackedItemRepository, OwnershipLedgerRepository and their SQLite impls.
+  Includes TrackedItemRepository, OwnershipLedgerRepository,
+  TrackedItemLotRepository, LotOwnershipLedgerRepository and their SQLite impls.
 
 dev.worldecho.integration
   Provider-neutral contracts and registry.
@@ -56,13 +63,25 @@ dev.worldecho.integration.vanilla
 dev.worldecho.paper
   Plugin lifecycle, commands, listeners, Bukkit-to-domain mapping.
 
+dev.worldecho.paper.inventory
+  PlayerInventoryReconciler and PlayerInventoryReconciliationScheduler:
+  main-thread inventory snapshot capture and asynchronous processing with
+  per-player coalescing.
+
+dev.worldecho.paper.listener
+  PlayerDeathMemoryListener, PlayerInventoryObservationListener,
+  ItemTransformationListener: event-driven reconciliation triggers and
+  transformation identity continuity.
+
 dev.worldecho.paper.item
   ItemIdentityAdapter: reads and writes WorldEcho tracked-item IDs on ItemStacks
-  using the Persistent Data Container.
+  using the Persistent Data Container. Includes writeIdentity for transformation
+  identity continuity.
 
 dev.worldecho.paper.command
   WorldEchoCommand and ItemCommandHandler: command dispatch, tab completion,
-  async database queries, and message formatting.
+  async database queries, and message formatting. Includes reconcile and policy
+  subcommands.
 
 dev.worldecho.config
   Configuration validation and message access.

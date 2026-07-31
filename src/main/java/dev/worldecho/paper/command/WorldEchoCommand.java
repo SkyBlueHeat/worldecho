@@ -222,6 +222,7 @@ public final class WorldEchoCommand implements CommandExecutor, TabCompleter {
         line(sender, "recon.lots", Long.toString(reconciliationMetrics.automaticLotsAssigned()));
         line(sender, "recon.ownership", Long.toString(reconciliationMetrics.ownershipTransitionsRecorded()));
         line(sender, "recon.warnings", Long.toString(reconciliationMetrics.identityWarnings()));
+        line(sender, "recon.duplicates", Long.toString(reconciliationMetrics.duplicateIdentityObservations()));
         line(sender, "recon.pending", Long.toString(reconciliationMetrics.pendingReconciliations()));
     }
 

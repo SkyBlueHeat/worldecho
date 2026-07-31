@@ -32,6 +32,13 @@ Requires JDK 25. The wrapper pins Gradle 9.6.1.
 | `OwnershipTransitionServiceTest` | Recording, idempotency replay, conflict on key mismatch, no-change, not-tracked, invalid subject, current ownership query |
 | `SqliteTrackedItemRepositoryTest` | Create, findById, exists, observe, count, idempotent create |
 | `SqliteOwnershipLedgerRepositoryTest` | Append, find current, find history descending, idempotency replay, conflict, count, previous subject persistence |
+| `ItemIdentityPolicyTest` | UNIQUE classification for damageable, non-stackable, named, enchanted, custom-model, existing-identity items; LOT classification for ordinary stackable items; unknown custom item prefers UNIQUE; deterministic and immutable results |
+| `LotCompatibilityFingerprintTest` | Identical items produce same fingerprint; amount does not affect compatibility; different material/potion/map/book/enchantment/custom data differ; provider identity included; deterministic serialization |
+| `ReconciliationCycleTest` | Deterministic idempotency key generation; same inputs produce same cycle ID; different players/triggers produce different cycle IDs |
+| `ReconciliationMetricsTest` | Counter increment, decrement, reset; thread-safe operations |
+| `DuplicateObservationRegistryTest` | Duplicate detection, conflicting content detection, stale observation expiration, bounded registry |
+| `TrackedItemLotRepositoryTest` | Lot CRUD, lineage append, ownership ledger operations, idempotency, history retrieval |
+| `SchemaMigratorTest` (v3) | Lot tables and indexes created in v3 migration; v0/v1/v2 → latest; rerun idempotent |
 
 `shadowJar` is finalized by `shadowJarSmokeTest`, which opens a real SQLite database using
 **only** the shaded JAR. Unit tests run against the un-shadowed classpath, so they cannot
@@ -81,7 +88,7 @@ verified on the other three boots.
 1. Install a Paper 26.2 server on Java 25.
 2. Copy `build/libs/worldecho-0.1.0-SNAPSHOT.jar` into `plugins/`.
 3. Start the server with **no** other plugins and confirm the log shows:
-   - `Storage ready at .../plugins/WorldEcho/worldecho.db (2 migration(s) applied)`
+   - `Storage ready at .../plugins/WorldEcho/worldecho.db (3 migration(s) applied)`
    - `Content providers: entity:vanilla=AVAILABLE, item:vanilla=AVAILABLE`
    - `WorldEcho memory kernel enabled`
 4. Run `/worldecho status` and confirm version, locale, queue counters, providers,
@@ -110,6 +117,24 @@ verified on the other three boots.
     ownership record is updated without moving the physical item.
 18. Run `/worldecho status` and confirm `tracked-items` and `ledger-entries` counts are
     shown.
+19. Join the server without using any WorldEcho item command. Confirm existing inventory
+    is reconciled automatically (check `recon.count` in `/worldecho status`).
+20. Receive cobblestone. Confirm cobblestone stacks normally.
+21. Split and merge cobblestone stacks. Confirm stacking remains normal.
+22. Receive a diamond sword. Do not run `/worldecho item track`.
+23. Run `/worldecho item inspect`. Confirm the sword already has an ID and current owner
+    is the player.
+24. Move the sword between slots. Confirm identity remains unchanged.
+25. Rename it in an anvil. Confirm identity remains unchanged.
+26. Repair or modify it. Confirm identity continuity.
+27. Drop and pick it up. Confirm no duplicate tracked record.
+28. Give it to another player. Confirm ownership transfers once.
+29. Run `/worldecho item policy` while holding an item. Confirm identity mode,
+    classification reasons, confidence, and lot fingerprint are displayed.
+30. Run `/worldecho item reconcile` and confirm reconciliation is scheduled.
+31. Restart the server. Confirm identities and ownership persist.
+32. Confirm no automatic tracking chat spam during any of the above.
+33. Stop the server cleanly.
 
 ### Checking the thread rules
 
