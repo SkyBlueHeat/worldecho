@@ -38,6 +38,10 @@ Requires JDK 25. The wrapper pins Gradle 9.6.1.
 | `ReconciliationMetricsTest` | Counter increment, decrement, reset; thread-safe operations |
 | `DuplicateObservationRegistryTest` | Duplicate detection, conflicting content detection, stale observation expiration, bounded registry |
 | `TrackedItemLotRepositoryTest` | Lot CRUD, lineage append, ownership ledger operations, idempotency, history retrieval |
+| `AutomaticItemIdentityServiceTest` | UNIQUE assignment, existing ID preservation, LOT creation, missing DB reconciliation, malformed identity, idempotency, ownership transfer, persistence failure isolation |
+| `LotSplitMergeTest` | Split lineage, idempotency, quantity preservation, no ownership transfer; merge lineage, idempotency, quantity preservation, no ownership transfer; incompatible lots differ |
+| `ItemIdentityAdapterTest` | Identity resolution: missing, existing, malformed, uppercase UUID, stability across reads |
+| `ReconciliationTest` | Snapshot conflicts produce diagnostics, missing DB rows reconciled with existing IDs |
 | `SchemaMigratorTest` (v3) | Lot tables and indexes created in v3 migration; v0/v1/v2 → latest; rerun idempotent |
 
 `shadowJar` is finalized by `shadowJarSmokeTest`, which opens a real SQLite database using
@@ -91,6 +95,7 @@ verified on the other three boots.
    - `Storage ready at .../plugins/WorldEcho/worldecho.db (3 migration(s) applied)`
    - `Content providers: entity:vanilla=AVAILABLE, item:vanilla=AVAILABLE`
    - `WorldEcho memory kernel enabled`
+   - `Automatic tracking metrics: reconciliations=...` on shutdown
 4. Run `/worldecho status` and confirm version, locale, queue counters, providers,
    database `ok`, schema version, and event count.
 5. Hold a diamond sword and run `/worldecho inspect item`; the score breakdown must list

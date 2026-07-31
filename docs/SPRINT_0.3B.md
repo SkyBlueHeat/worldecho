@@ -13,7 +13,7 @@ This sprint introduces a complete automatic item identity and ownership synchron
 - **Lot fingerprinting**: LOT items are grouped by a deterministic `LotCompatibilityFingerprint` that normalizes material, damage, enchantments, and provider.
 - **Ownership reconciliation**: Every reconciliation cycle records ownership transitions idempotently, using deterministic cycle-scoped keys.
 - **Coalescing scheduler**: Multiple inventory events in the same tick coalesce into a single next-tick reconciliation — no every-tick scanner, no unbounded task creation.
-- **Event-driven**: Join, respawn, inventory click/drag, pickup, and death events trigger reconciliation.
+- **Event-driven**: Join, respawn, inventory click/drag, pickup, death, drop, world change, crafting, furnace extract, offhand swap, and fishing events trigger reconciliation. Creative inventory actions and merchant trades are covered by InventoryClickEvent. Hotbar number-key swaps are covered by InventoryClickEvent with HOTBAR_SWAP action.
 - **Transformation identity continuity**: Anvil, smithing table, and grindstone transformations preserve the source item's WorldEcho UUID on the result item.
 - **Silent operation**: No chat spam for normal players. Metrics are visible via `/worldecho status`.
 - **Admin commands**: `/worldecho item reconcile [player]` and `/worldecho item policy` for manual control and diagnostics.
@@ -67,7 +67,8 @@ Indexes: `idx_tracked_lots_fingerprint`, `idx_tracked_lots_content_key`, `idx_lo
 |------|---------|
 | `PlayerInventoryReconciler` | Captures immutable snapshots on main thread, processes asynchronously |
 | `PlayerInventoryReconciliationScheduler` | Coalesces events per-player into next-tick tasks |
-| `PlayerInventoryObservationListener` | Listens for join, respawn, click, drag, pickup, death |
+| `PlayerInventoryObservationListener` | Listens for join, respawn, click, drag, pickup, death, drop, world change, crafting, furnace extract, offhand swap, fishing |
+| `ItemTransformationListener` | Preserves UNIQUE identity across anvil, smithing, grindstone transformations |
 
 ## Configuration
 
@@ -81,15 +82,26 @@ items:
     reconcile-on-join: true
     reconcile-on-respawn: true
     reconcile-after-inventory-events: true
+    transform-identity-continuity: true
     debug-messages: false
 ```
+
+## Product statement
+
+WorldEcho automatically identifies and records items entering active player inventories. Normal players and server administrators are not expected to manually track items.
 
 ## Commands
 
 | Command | Permission | Description |
 |---------|-----------|-------------|
 | `/worldecho item reconcile [player]` | `worldecho.item.reconcile` | Triggers manual inventory reconciliation |
-| `/worldecho item policy` | `worldecho.item.policy` | Shows identity classification for held item |
+| `/worldecho item policy` | `worldecho.item.policy` | Shows identity classification for held item (read-only) |
+
+### Redefined commands
+
+`/worldecho item track` is redefined as a **diagnostic/repair tool**. It forces immediate held-item reconciliation, preserves existing identity, and clearly identifies itself as manual repair/diagnostic functionality. It is not required during normal gameplay.
+
+`/worldecho item assign-owner` remains a ledger-only administrative repair tool.
 
 ## Status metrics
 
@@ -100,6 +112,7 @@ items:
 - `recon.lots`: LOT identities assigned
 - `recon.ownership`: ownership transitions recorded
 - `recon.warnings`: identity warnings
+- `recon.duplicates`: duplicate identity observations
 - `recon.pending`: pending reconciliations
 
 ## Threading rules
@@ -109,10 +122,18 @@ items:
 - Immutable snapshots are captured on the main thread and processed asynchronously
 - No SQLite reads or writes on the main server thread
 
+## Reload behavior
+
+`/worldecho reload` reloads automatic tracking settings. When automatic tracking changes from disabled to enabled, it schedules reconciliation for all online players. It does not synchronously scan inventories, replace identities, or clear ownership history.
+
+## Shutdown behavior
+
+On shutdown, the scheduler rejects new reconciliation requests, cancels pending tasks, and reports concise reconciliation metrics. PDC identities already written are preserved.
+
 ## Tests
 
-- 246 tests total, 0 failures
-- New tests: `ItemIdentityPolicyTest` (14), `LotCompatibilityFingerprintTest` (7), `ReconciliationCycleTest` (4), `ReconciliationMetricsTest` (4), `DuplicateObservationRegistryTest` (5), `TrackedItemLotRepositoryTest` (8), `SchemaMigratorTest` +1 v3 test
+- 283 tests total, 0 failures
+- New tests: `ItemIdentityPolicyTest` (14), `LotCompatibilityFingerprintTest` (7), `ReconciliationCycleTest` (4), `ReconciliationMetricsTest` (4), `DuplicateObservationRegistryTest` (5), `TrackedItemLotRepositoryTest` (8), `AutomaticItemIdentityServiceTest` (10), `LotSplitMergeTest` (9), `SchemaMigratorTest` +1 v3 test, `BundledResourcesTest` +18 new message key checks
 
 ## Known limitations
 
