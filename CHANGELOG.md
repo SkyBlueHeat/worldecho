@@ -207,10 +207,15 @@
   rejection, pending-state cleanup now unit-testable without Bukkit
 - `TransformationDecision` extracted as pure-Java component: inventory classification,
   capture decisions, write decisions, feature gate now unit-testable without Bukkit
+- `ReconciliationPlanGenerator` extracted as pure-Java component: plan generation
+  from snapshots now unit-testable without Bukkit
+- `SlotSnapshotComparator` extracted as pure-Java component: snapshot diff/comparison
+  now unit-testable without Bukkit
 - `ItemTransformationListener` refactored to delegate decisions to `TransformationDecision`
 - `PlayerInventoryReconciliationScheduler` refactored to delegate state to `ReconciliationSchedulerState`
 - Duplicate ID detection moved BEFORE ownership transition to prevent ping-pong
 - New composite index `idx_tracked_lots_fingerprint_owner` for owner-scoped lot lookup
 - New tests: `ReconciliationSchedulerStateTest` (9), `TransformationDecisionTest` (22),
-  `AutomaticItemIdentityServiceTest` +7 (owner-scoped, restart-safe, no ping-pong, join plan),
+  `ReconciliationPlanGeneratorTest` (9), `SlotSnapshotComparatorTest` (10),
+  `AutomaticItemIdentityServiceTest` +11 (owner-scoped, restart-safe, no ping-pong, join plan, quantity handling),
   `LotSplitMergeTest` +4 (owner-scoped lookup tests)

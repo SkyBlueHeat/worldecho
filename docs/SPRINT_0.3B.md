@@ -43,6 +43,8 @@ This sprint introduces a complete automatic item identity and ownership synchron
 | `DuplicateObservationRegistry` | `domain.item` | Bounded in-memory duplicate detection |
 | `ReconciliationSchedulerState` | `domain.item` | Pure-Java pending-player coalescing state |
 | `TransformationDecision` | `domain.item` | Pure-Java transformation identity continuity decision logic |
+| `ReconciliationPlanGenerator` | `domain.item` | Pure-Java reconciliation plan generation from snapshots |
+| `SlotSnapshotComparator` | `domain.item` | Pure-Java snapshot diff/comparison logic |
 
 ## New persistence types
 
@@ -135,7 +137,7 @@ On shutdown, the scheduler rejects new reconciliation requests, cancels pending 
 ## Tests
 
 - Test count: see build output for exact count
-- New tests: `ItemIdentityPolicyTest` (14), `LotCompatibilityFingerprintTest` (7), `ReconciliationCycleTest` (4), `ReconciliationMetricsTest` (4), `DuplicateObservationRegistryTest` (5), `ReconciliationSchedulerStateTest` (9), `TransformationDecisionTest` (22), `TrackedItemLotRepositoryTest` (8), `AutomaticItemIdentityServiceTest` (17), `LotSplitMergeTest` (13), `SchemaMigratorTest` +1 v3 test, `BundledResourcesTest` +18 new message key checks
+- New tests: `ItemIdentityPolicyTest` (14), `LotCompatibilityFingerprintTest` (7), `ReconciliationCycleTest` (4), `ReconciliationMetricsTest` (4), `DuplicateObservationRegistryTest` (5), `ReconciliationSchedulerStateTest` (9), `TransformationDecisionTest` (22), `ReconciliationPlanGeneratorTest` (9), `SlotSnapshotComparatorTest` (10), `TrackedItemLotRepositoryTest` (8), `AutomaticItemIdentityServiceTest` (21), `LotSplitMergeTest` (13), `SchemaMigratorTest` +1 v3 test, `BundledResourcesTest` +18 new message key checks
 
 ## Known limitations
 
