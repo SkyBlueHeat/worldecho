@@ -50,7 +50,8 @@ class TrackedItemLotRepositoryTest {
                 lotId, now, now, now,
                 ContentKey.parse("minecraft:cobblestone"),
                 "minecraft", "minecraft:cobblestone", fp,
-                32, 32, "AUTOMATIC", "player:abc"
+                32, 32, "AUTOMATIC", "player:abc",
+                "player", "abc", ""
         );
 
         assertEquals(TrackedItemLotRepository.CreateResult.CREATED, lotRepository.create(lot));
@@ -71,7 +72,8 @@ class TrackedItemLotRepositoryTest {
                 lotId, now, now, now,
                 ContentKey.parse("minecraft:dirt"),
                 "minecraft", "minecraft:dirt", fp,
-                16, 16, "AUTOMATIC", ""
+                16, 16, "AUTOMATIC", "",
+                "", "", ""
         );
 
         lotRepository.create(lot);
@@ -90,7 +92,8 @@ class TrackedItemLotRepositoryTest {
                 lotId, now, now, now,
                 ContentKey.parse("minecraft:iron_ingot"),
                 "minecraft", "minecraft:iron_ingot", fp,
-                64, 64, "AUTOMATIC", ""
+                64, 64, "AUTOMATIC", "",
+                "", "", ""
         );
         lotRepository.create(lot);
 
@@ -109,7 +112,8 @@ class TrackedItemLotRepositoryTest {
                 lotId, now, now, now,
                 ContentKey.parse("minecraft:cobblestone"),
                 "minecraft", "minecraft:cobblestone", fp,
-                32, 32, "AUTOMATIC", ""
+                32, 32, "AUTOMATIC", "",
+                "", "", ""
         );
         lotRepository.create(lot);
 
@@ -131,12 +135,14 @@ class TrackedItemLotRepositoryTest {
                 lotId, now, now, now,
                 ContentKey.parse("minecraft:cobblestone"),
                 "minecraft", "minecraft:cobblestone", fp,
-                32, 32, "AUTOMATIC", ""));
+                32, 32, "AUTOMATIC", "",
+                "", "", ""));
         lotRepository.create(new TrackedItemLot(
                 relatedId, now, now, now,
                 ContentKey.parse("minecraft:cobblestone"),
                 "minecraft", "minecraft:cobblestone", fp,
-                16, 16, "AUTOMATIC", ""));
+                16, 16, "AUTOMATIC", "",
+                "", "", ""));
 
         LotLineageEntry entry = new LotLineageEntry(
                 UUID.randomUUID().toString(), lotId, relatedId,
@@ -159,7 +165,8 @@ class TrackedItemLotRepositoryTest {
                 lotId, now, now, now,
                 ContentKey.parse("minecraft:cobblestone"),
                 "minecraft", "minecraft:cobblestone", fp,
-                32, 32, "AUTOMATIC", ""));
+                32, 32, "AUTOMATIC", "",
+                "", "", ""));
 
         OwnershipSubject player = OwnershipSubject.player(UUID.randomUUID(), "TestPlayer");
         LotOwnershipLedgerEntry entry = new LotOwnershipLedgerEntry(
@@ -188,7 +195,8 @@ class TrackedItemLotRepositoryTest {
                 lotId, now, now, now,
                 ContentKey.parse("minecraft:cobblestone"),
                 "minecraft", "minecraft:cobblestone", fp,
-                32, 32, "AUTOMATIC", ""));
+                32, 32, "AUTOMATIC", "",
+                "", "", ""));
 
         OwnershipSubject player = OwnershipSubject.player(UUID.randomUUID());
         LotOwnershipLedgerEntry entry = new LotOwnershipLedgerEntry(
@@ -216,7 +224,8 @@ class TrackedItemLotRepositoryTest {
                 lotId, now, now, now,
                 ContentKey.parse("minecraft:cobblestone"),
                 "minecraft", "minecraft:cobblestone", fp,
-                32, 32, "AUTOMATIC", ""));
+                32, 32, "AUTOMATIC", "",
+                "", "", ""));
         assertEquals(1, lotRepository.count());
     }
 }

@@ -37,12 +37,18 @@ Requires JDK 25. The wrapper pins Gradle 9.6.1.
 | `ReconciliationCycleTest` | Deterministic idempotency key generation; same inputs produce same cycle ID; different players/triggers produce different cycle IDs |
 | `ReconciliationMetricsTest` | Counter increment, decrement, reset; thread-safe operations |
 | `DuplicateObservationRegistryTest` | Duplicate detection, conflicting content detection, stale observation expiration, bounded registry |
+| `ReconciliationSchedulerStateTest` | Same-tick coalescing, different players both schedule, pending state cleanup, shutdown rejects reconciliation, shutdown clears pending, reschedule after clear, idempotent shutdown |
+| `TransformationDecisionTest` | Anvil/smithing/grindstone classification, result slot mapping, capture decisions for relevant/irrelevant actions, write-to-cursor vs write-to-result-slot, feature gate, crafting/stonecutter excluded |
+| `ReconciliationPlanGeneratorTest` | Empty snapshot, empty slot skip, unique without ID, unique with ID triggers duplicate check, lot processing, mixed snapshot, malformed slot, join plan counts, all-empty, unclassified skip |
+| `SlotSnapshotComparatorTest` | First observation all added, identical snapshots unchanged, amount change, material change, identity change, removed slot, added slot, classification change, changed slots filter, both empty unchanged |
 | `TrackedItemLotRepositoryTest` | Lot CRUD, lineage append, ownership ledger operations, idempotency, history retrieval |
-| `AutomaticItemIdentityServiceTest` | UNIQUE assignment, existing ID preservation, LOT creation, missing DB reconciliation, malformed identity, idempotency, ownership transfer, persistence failure isolation |
-| `LotSplitMergeTest` | Split lineage, idempotency, quantity preservation, no ownership transfer; merge lineage, idempotency, quantity preservation, no ownership transfer; incompatible lots differ |
+| `AutomaticItemIdentityServiceTest` | UNIQUE assignment, existing ID preservation, LOT creation, missing DB reconciliation, malformed identity, idempotency, ownership transfer, persistence failure isolation, same fingerprint stacks summed, slot order independence, three stacks persisted, split preserves total, merge preserves total, acquisition increases total, partial consumption decreases, complete removal zeros, dropping all zeros, consuming all zeros, absent fingerprint does not create, existing absent fingerprint zeroed, repeated snapshot idempotent, one update per owner+fingerprint per cycle, same UUID after name change reuses aggregate, different players get different lots, display name does not affect lookup, repository restart preserves aggregate, malformed does not block valid, negative amount guard, join reconciliation plan |
+| `LotSplitMergeTest` | Split lineage, idempotency, quantity preservation, no ownership transfer; merge lineage, idempotency, quantity preservation, no ownership transfer; incompatible lots differ; owner-scoped lookup: different players same fingerprint get different lots, same player reuses lot, unknown owner returns empty |
 | `ItemIdentityAdapterTest` | Identity resolution: missing, existing, malformed, uppercase UUID, stability across reads |
 | `ReconciliationTest` | Snapshot conflicts produce diagnostics, missing DB rows reconciled with existing IDs |
-| `SchemaMigratorTest` (v3) | Lot tables and indexes created in v3 migration; v0/v1/v2 → latest; rerun idempotent |
+| `SchemaMigratorTest` (v3+v4) | Lot tables and indexes created in v3 migration; v4 adds owner scope columns, backfills from `created_by_subject`, resolves duplicate legacy rows, creates UNIQUE index; v0/v1/v2 → latest; rerun idempotent |
+| `MigrationV4BackfillTest` | V3→V4 backfill: valid player subject, separator-safe UUID, malformed fallback, duplicate resolution, amount/timestamp/lotId/ledger preservation, idempotent rerun |
+| `ReconcileOwnerAggregatesTest` | Atomic reconcile: create new lot, update amount, zero absent fingerprints, no double-zero, idempotent repeat, display snapshot update, no ambiguous duplicates, multi-fingerprint atomic, empty map zeros all |
 
 `shadowJar` is finalized by `shadowJarSmokeTest`, which opens a real SQLite database using
 **only** the shaded JAR. Unit tests run against the un-shadowed classpath, so they cannot
@@ -52,7 +58,9 @@ real server, since the bundled native library still exports `Java_org_sqlite_cor
 
 Tests are pure JVM tests. Classes that touch Bukkit (listener, command, providers, plugin
 lifecycle) are deliberately thin adapters over tested logic, because a Paper server cannot
-be started inside this test suite.
+be started inside this test suite. Core decision logic (coalescing state, transformation
+continuity decisions, identity classification, ownership transitions, duplicate detection)
+is extracted into pure-Java components and fully unit-tested without Bukkit.
 
 ## Verified on a real server
 

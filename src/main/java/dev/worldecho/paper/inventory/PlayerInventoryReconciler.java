@@ -17,6 +17,7 @@ import dev.worldecho.domain.item.OwnershipResult;
 import dev.worldecho.domain.item.OwnershipResultStatus;
 import dev.worldecho.domain.item.ReconciliationCycle;
 import dev.worldecho.domain.item.ReconciliationMetrics;
+import dev.worldecho.domain.item.ReconciliationPlanGenerator;
 import dev.worldecho.domain.item.SlotProcessResult;
 import dev.worldecho.domain.item.TrackedItemId;
 import dev.worldecho.domain.item.TrackedItemLotId;
@@ -50,6 +51,7 @@ public final class PlayerInventoryReconciler {
     private final AutomaticItemIdentityService identityService;
     private final ReconciliationMetrics metrics;
     private final DuplicateObservationRegistry duplicateRegistry;
+    private final ReconciliationPlanGenerator planGenerator = new ReconciliationPlanGenerator();
     private final AtomicLong cycleSequenceCounter = new AtomicLong(0);
     private final String serverSessionId;
 
@@ -184,6 +186,9 @@ public final class PlayerInventoryReconciler {
 
     /**
      * Background thread: process the snapshot through identity and ownership services.
+     *
+     * <p>Delegates plan generation to {@link ReconciliationPlanGenerator} so that
+     * the decision logic is unit-testable without Bukkit.
      */
     public void processSnapshot(ObservedInventorySnapshot snapshot) {
         if (snapshot == null || snapshot.slots().isEmpty()) {
@@ -194,32 +199,21 @@ public final class PlayerInventoryReconciler {
         String playerDisplayName = snapshot.playerDisplayName();
         ReconciliationCycle cycle = snapshot.cycle();
 
-        for (ObservedInventorySlot slot : snapshot.slots()) {
-            if (slot.isEmpty()) {
-                continue;
-            }
+        ReconciliationPlanGenerator.ReconciliationPlan plan = planGenerator.generatePlan(snapshot);
+
+        // Process UNIQUE items individually
+        for (ReconciliationPlanGenerator.SlotPlan slotPlan : plan.slotPlans()) {
+            ObservedInventorySlot slot = slotPlan.slot();
 
             try {
                 SlotProcessResult result;
-                if (slot.isUnique()) {
-                    result = identityService.processUniqueSlot(slot, playerUuid, playerDisplayName, cycle);
-                } else if (slot.isLot()) {
-                    result = identityService.processLotSlot(slot, playerUuid, playerDisplayName, cycle);
-                    if (result.status() == SlotProcessResult.Status.PROCESSED
-                            || result.status() == SlotProcessResult.Status.ASSIGNED) {
-                        metrics.recordLotAssigned();
-                    }
-                } else {
+                if (slotPlan.action() == ReconciliationPlanGenerator.SlotAction.SKIP_EMPTY
+                        || slotPlan.action() == ReconciliationPlanGenerator.SlotAction.SKIP_UNCLASSIFIED) {
                     continue;
                 }
 
-                if (result.status() == SlotProcessResult.Status.MALFORMED) {
-                    metrics.recordIdentityWarning();
-                } else if (result.status() == SlotProcessResult.Status.PERSISTENCE_FAILURE) {
-                    metrics.recordIdentityWarning();
-                }
-
-                if (slot.existingUniqueId() != null && slot.isUnique()) {
+                if (slotPlan.action() == ReconciliationPlanGenerator.SlotAction.PROCESS_UNIQUE_WITH_DUPLICATE_CHECK) {
+                    // Check for duplicate UNIQUE identity BEFORE processing
                     String contentFingerprint = slot.material() + ":" + slot.amount();
                     DuplicateObservationRegistry.Observation observation =
                             new DuplicateObservationRegistry.Observation(
@@ -235,7 +229,20 @@ public final class PlayerInventoryReconciler {
                             duplicateRegistry.observe(observation);
                     if (diagnostic != null) {
                         metrics.recordDuplicateIdentity();
+                        result = SlotProcessResult.skipped(slot);
+                    } else {
+                        result = identityService.processUniqueSlot(slot, playerUuid, playerDisplayName, cycle);
                     }
+                } else if (slotPlan.action() == ReconciliationPlanGenerator.SlotAction.PROCESS_UNIQUE) {
+                    result = identityService.processUniqueSlot(slot, playerUuid, playerDisplayName, cycle);
+                } else {
+                    continue;
+                }
+
+                if (result.status() == SlotProcessResult.Status.MALFORMED) {
+                    metrics.recordIdentityWarning();
+                } else if (result.status() == SlotProcessResult.Status.PERSISTENCE_FAILURE) {
+                    metrics.recordIdentityWarning();
                 }
 
                 if (result.optionalOwnershipResult().isPresent()) {
@@ -246,6 +253,25 @@ public final class PlayerInventoryReconciler {
                 }
             } catch (Exception exception) {
                 metrics.recordIdentityWarning();
+            }
+        }
+
+        // Process LOT items as aggregated groups (one update per owner+fingerprint)
+        List<SlotProcessResult> lotResults = identityService.processLotSlots(snapshot);
+        for (SlotProcessResult lotResult : lotResults) {
+            if (lotResult.status() == SlotProcessResult.Status.PROCESSED
+                    || lotResult.status() == SlotProcessResult.Status.ASSIGNED) {
+                metrics.recordLotAssigned();
+            }
+            if (lotResult.status() == SlotProcessResult.Status.MALFORMED
+                    || lotResult.status() == SlotProcessResult.Status.PERSISTENCE_FAILURE) {
+                metrics.recordIdentityWarning();
+            }
+            if (lotResult.optionalOwnershipResult().isPresent()) {
+                OwnershipResult ownershipResult = lotResult.optionalOwnershipResult().get();
+                if (ownershipResult.status() == OwnershipResultStatus.RECORDED) {
+                    metrics.recordOwnershipTransition();
+                }
             }
         }
 

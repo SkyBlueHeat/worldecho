@@ -2,12 +2,12 @@ package dev.worldecho.paper.listener;
 
 import dev.worldecho.config.WorldEchoSettings;
 import dev.worldecho.domain.item.TrackedItemId;
+import dev.worldecho.domain.item.TransformationDecision;
 import dev.worldecho.paper.item.ItemIdentityAdapter;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
-import org.bukkit.event.inventory.InventoryAction;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.inventory.ItemStack;
@@ -30,9 +30,8 @@ import java.util.function.Supplier;
  *       check the cursor for the result item and write the captured identity.</li>
  * </ol>
  *
- * <p>This ensures the result item inherits the source item's WorldEcho UUID,
- * maintaining identity continuity through repairs, renames, upgrades, and
- * enchantment removals.
+ * <p>Decision logic (whether to capture, where to write) is delegated to
+ * {@link TransformationDecision} so it is unit-testable without Bukkit.
  */
 public final class ItemTransformationListener implements Listener {
 
@@ -50,7 +49,11 @@ public final class ItemTransformationListener implements Listener {
 
     @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
     public void onInventoryClickLow(InventoryClickEvent event) {
-        if (!isAutomaticTrackingEnabled()) {
+        WorldEchoSettings settings = settingsSupplier.get();
+        if (!TransformationDecision.isFeatureEnabled(
+                settings.automaticTrackingEnabled(),
+                settings.automaticTrackingPlayerInventories(),
+                settings.automaticTrackingTransformIdentityContinuity())) {
             return;
         }
         if (!(event.getWhoClicked() instanceof Player player)) {
@@ -59,25 +62,14 @@ public final class ItemTransformationListener implements Listener {
 
         Inventory inventory = event.getInventory();
         InventoryType type = inventory.getType();
-        if (!isTransformationInventory(type)) {
+
+        TransformationDecision.CaptureDecision capture = TransformationDecision.shouldCaptureIdentity(
+                type.name(), event.getAction().name(), event.getRawSlot());
+        if (!capture.shouldCapture()) {
             return;
         }
 
-        InventoryAction action = event.getAction();
-        if (action != InventoryAction.PICKUP_ALL
-                && action != InventoryAction.PICKUP_HALF
-                && action != InventoryAction.MOVE_TO_OTHER_INVENTORY
-                && action != InventoryAction.COLLECT_TO_CURSOR
-                && action != InventoryAction.SWAP_WITH_CURSOR) {
-            return;
-        }
-
-        int resultSlot = getResultSlot(type);
-        if (event.getRawSlot() != resultSlot) {
-            return;
-        }
-
-        TrackedItemId sourceId = readSourceIdentity(inventory, type);
+        TrackedItemId sourceId = readSourceIdentity(inventory, capture.inventoryKind());
         if (sourceId != null) {
             pendingTransforms.put(player.getUniqueId(), sourceId);
         }
@@ -95,31 +87,31 @@ public final class ItemTransformationListener implements Listener {
         }
 
         ItemStack cursor = event.getCursor();
-        if (cursor == null || cursor.getType().isAir()) {
-            ItemStack resultSlotItem = event.getInventory().getItem(getResultSlot(event.getInventory().getType()));
-            if (resultSlotItem != null && !resultSlotItem.getType().isAir()) {
-                identityAdapter.writeIdentity(resultSlotItem, sourceId);
-            }
+        boolean cursorPresent = cursor != null;
+        boolean cursorIsAir = cursor == null || cursor.getType().isAir();
+
+        InventoryType type = event.getInventory().getType();
+        TransformationDecision.InventoryKind kind = TransformationDecision.classifyInventory(type.name());
+
+        int resultSlot = TransformationDecision.resultSlotFor(kind);
+        ItemStack resultSlotItem = resultSlot >= 0 ? event.getInventory().getItem(resultSlot) : null;
+        boolean resultSlotItemPresent = resultSlotItem != null && !resultSlotItem.getType().isAir();
+
+        TransformationDecision.WriteDecision write = TransformationDecision.shouldWriteIdentity(
+                cursorPresent, cursorIsAir, resultSlotItemPresent, kind);
+
+        if (!write.shouldWrite()) {
             return;
         }
 
-        identityAdapter.writeIdentity(cursor, sourceId);
-    }
-
-    private boolean isTransformationInventory(InventoryType type) {
-        return type == InventoryType.ANVIL
-                || type == InventoryType.SMITHING
-                || type == InventoryType.GRINDSTONE;
-    }
-
-    private int getResultSlot(InventoryType type) {
-        if (type == InventoryType.SMITHING) {
-            return 3;
+        if (write.writeToCursor()) {
+            identityAdapter.writeIdentity(cursor, sourceId);
+        } else {
+            identityAdapter.writeIdentity(resultSlotItem, sourceId);
         }
-        return 2;
     }
 
-    private TrackedItemId readSourceIdentity(Inventory inventory, InventoryType type) {
+    private TrackedItemId readSourceIdentity(Inventory inventory, TransformationDecision.InventoryKind kind) {
         ItemStack firstInput = inventory.getItem(0);
         if (firstInput != null && !firstInput.getType().isAir()) {
             ItemIdentityAdapter.IdentityResult result = identityAdapter.readIdentity(firstInput);
@@ -128,7 +120,8 @@ public final class ItemTransformationListener implements Listener {
             }
         }
 
-        if (type == InventoryType.ANVIL || type == InventoryType.SMITHING) {
+        if (kind == TransformationDecision.InventoryKind.ANVIL
+                || kind == TransformationDecision.InventoryKind.SMITHING) {
             ItemStack secondInput = inventory.getItem(1);
             if (secondInput != null && !secondInput.getType().isAir()) {
                 ItemIdentityAdapter.IdentityResult result = identityAdapter.readIdentity(secondInput);
@@ -139,12 +132,5 @@ public final class ItemTransformationListener implements Listener {
         }
 
         return null;
-    }
-
-    private boolean isAutomaticTrackingEnabled() {
-        WorldEchoSettings settings = settingsSupplier.get();
-        return settings.automaticTrackingEnabled()
-                && settings.automaticTrackingPlayerInventories()
-                && settings.automaticTrackingTransformIdentityContinuity();
     }
 }

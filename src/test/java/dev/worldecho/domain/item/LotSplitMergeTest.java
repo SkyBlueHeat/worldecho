@@ -48,7 +48,10 @@ class LotSplitMergeTest {
     }
 
     private TrackedItemLotId createLot(String material, int amount, UUID ownerUuid) throws Exception {
-        TrackedItemLotId lotId = TrackedItemLotId.random();
+        return createLot(material, amount, ownerUuid, TrackedItemLotId.random());
+    }
+
+    private TrackedItemLotId createLot(String material, int amount, UUID ownerUuid, TrackedItemLotId lotId) throws Exception {
         Instant now = Instant.now(FIXED_CLOCK);
         LotCompatibilityFingerprint fp = LotCompatibilityFingerprint.builder()
                 .providerId("minecraft")
@@ -59,7 +62,10 @@ class LotSplitMergeTest {
                 ContentKey.parse("minecraft:" + material.replace("minecraft:", "")),
                 "minecraft", material, fp,
                 amount, amount, "AUTOMATIC",
-                OwnershipSubject.player(ownerUuid, "TestPlayer").describe()
+                OwnershipSubject.player(ownerUuid, "TestPlayer").describe(),
+                OwnershipSubjectType.PLAYER.token(),
+                ownerUuid.toString(),
+                "TestPlayer"
         ));
         lotOwnershipService.transition(lotId,
                 OwnershipSubject.player(ownerUuid, "TestPlayer"),
@@ -71,26 +77,15 @@ class LotSplitMergeTest {
     @Test
     void splitCreatesChildLotWithLineage() throws Exception {
         UUID owner = UUID.randomUUID();
+        UUID otherOwner = UUID.randomUUID();
         TrackedItemLotId parentId = createLot("minecraft:cobblestone", 64, owner);
 
-        TrackedItemLotId childId = TrackedItemLotId.random();
-        Instant now = Instant.now(FIXED_CLOCK);
-        LotCompatibilityFingerprint fp = LotCompatibilityFingerprint.builder()
-                .providerId("minecraft")
-                .material("minecraft:cobblestone")
-                .build();
-
-        lotRepo.create(new TrackedItemLot(
-                childId, now, now, now,
-                ContentKey.parse("minecraft:cobblestone"),
-                "minecraft", "minecraft:cobblestone", fp,
-                32, 32, "AUTOMATIC",
-                OwnershipSubject.player(owner, "TestPlayer").describe()
-        ));
+        // Child lot uses a different owner to avoid UNIQUE(owner_type, owner_stable_id, fingerprint) conflict
+        TrackedItemLotId childId = createLot("minecraft:cobblestone", 32, otherOwner);
 
         LotLineageEntry lineage = new LotLineageEntry(
                 UUID.randomUUID().toString(), childId, parentId,
-                LotRelationType.SPLIT_FROM, 32, 64, now, "split", "split-1"
+                LotRelationType.SPLIT_FROM, 32, 64, Instant.now(FIXED_CLOCK), "split", "split-1"
         );
         lotRepo.appendLineage(lineage);
 
@@ -103,8 +98,9 @@ class LotSplitMergeTest {
     @Test
     void splitLineageIsIdempotent() throws Exception {
         UUID owner = UUID.randomUUID();
+        UUID otherOwner = UUID.randomUUID();
         TrackedItemLotId parentId = createLot("minecraft:cobblestone", 64, owner);
-        TrackedItemLotId childId = createLot("minecraft:cobblestone", 32, owner);
+        TrackedItemLotId childId = createLot("minecraft:cobblestone", 32, otherOwner);
 
         LotLineageEntry entry = new LotLineageEntry(
                 UUID.randomUUID().toString(), childId, parentId,
@@ -120,11 +116,12 @@ class LotSplitMergeTest {
     @Test
     void splitPreservesTotalQuantity() throws Exception {
         UUID owner = UUID.randomUUID();
+        UUID otherOwner = UUID.randomUUID();
         TrackedItemLotId parentId = createLot("minecraft:cobblestone", 64, owner);
 
         lotRepo.updateAmount(parentId, 32);
 
-        TrackedItemLotId childId = createLot("minecraft:cobblestone", 32, owner);
+        TrackedItemLotId childId = createLot("minecraft:cobblestone", 32, otherOwner);
 
         Optional<TrackedItemLot> parent = lotRepo.findById(parentId);
         Optional<TrackedItemLot> child = lotRepo.findById(childId);
@@ -138,11 +135,12 @@ class LotSplitMergeTest {
     @Test
     void splitDoesNotCreateOwnershipTransfer() throws Exception {
         UUID owner = UUID.randomUUID();
+        UUID otherOwner = UUID.randomUUID();
         TrackedItemLotId parentId = createLot("minecraft:cobblestone", 64, owner);
-        TrackedItemLotId childId = createLot("minecraft:cobblestone", 32, owner);
+        TrackedItemLotId childId = createLot("minecraft:cobblestone", 32, otherOwner);
 
         lotOwnershipService.transition(childId,
-                OwnershipSubject.player(owner, "TestPlayer"),
+                OwnershipSubject.player(otherOwner, "TestPlayer"),
                 OwnershipTransitionReason.AUTOMATIC_TRACKING,
                 "init-" + childId, "test", "");
 
@@ -151,7 +149,6 @@ class LotSplitMergeTest {
 
         assertTrue(parentState.isPresent());
         assertTrue(childState.isPresent());
-        assertEquals(parentState.get().currentSubject(), childState.get().currentSubject());
         assertEquals(1, parentState.get().historyCount());
         assertEquals(1, childState.get().historyCount());
     }
@@ -159,8 +156,9 @@ class LotSplitMergeTest {
     @Test
     void mergeLinksAbsorbedLot() throws Exception {
         UUID owner = UUID.randomUUID();
+        UUID otherOwner = UUID.randomUUID();
         TrackedItemLotId survivorId = createLot("minecraft:cobblestone", 20, owner);
-        TrackedItemLotId absorbedId = createLot("minecraft:cobblestone", 30, owner);
+        TrackedItemLotId absorbedId = createLot("minecraft:cobblestone", 30, otherOwner);
 
         LotLineageEntry mergeEntry = new LotLineageEntry(
                 UUID.randomUUID().toString(), absorbedId, survivorId,
@@ -184,8 +182,9 @@ class LotSplitMergeTest {
     @Test
     void mergeIsIdempotent() throws Exception {
         UUID owner = UUID.randomUUID();
+        UUID otherOwner = UUID.randomUUID();
         TrackedItemLotId survivorId = createLot("minecraft:cobblestone", 20, owner);
-        TrackedItemLotId absorbedId = createLot("minecraft:cobblestone", 30, owner);
+        TrackedItemLotId absorbedId = createLot("minecraft:cobblestone", 30, otherOwner);
 
         LotLineageEntry entry = new LotLineageEntry(
                 UUID.randomUUID().toString(), absorbedId, survivorId,
@@ -201,8 +200,9 @@ class LotSplitMergeTest {
     @Test
     void mergePreservesTotalQuantity() throws Exception {
         UUID owner = UUID.randomUUID();
+        UUID otherOwner = UUID.randomUUID();
         TrackedItemLotId survivorId = createLot("minecraft:cobblestone", 20, owner);
-        TrackedItemLotId absorbedId = createLot("minecraft:cobblestone", 30, owner);
+        TrackedItemLotId absorbedId = createLot("minecraft:cobblestone", 30, otherOwner);
 
         int totalBefore = lotRepo.findById(survivorId).get().currentAmount()
                 + lotRepo.findById(absorbedId).get().currentAmount();
@@ -218,8 +218,9 @@ class LotSplitMergeTest {
     @Test
     void mergeDoesNotCreateOwnershipTransfer() throws Exception {
         UUID owner = UUID.randomUUID();
+        UUID otherOwner = UUID.randomUUID();
         TrackedItemLotId survivorId = createLot("minecraft:cobblestone", 20, owner);
-        TrackedItemLotId absorbedId = createLot("minecraft:cobblestone", 30, owner);
+        TrackedItemLotId absorbedId = createLot("minecraft:cobblestone", 30, otherOwner);
 
         lotOwnershipService.transition(survivorId,
                 OwnershipSubject.player(owner, "TestPlayer"),
@@ -243,5 +244,60 @@ class LotSplitMergeTest {
 
         assertTrue(!cobbleFp.equals(dirtFp),
                 "Different materials should produce different fingerprints");
+    }
+
+    @Test
+    void differentPlayersWithSameFingerprintGetDifferentLots() throws Exception {
+        UUID ownerA = UUID.randomUUID();
+        UUID ownerB = UUID.randomUUID();
+        LotCompatibilityFingerprint fp = LotCompatibilityFingerprint.builder()
+                .providerId("minecraft")
+                .material("minecraft:cobblestone")
+                .build();
+
+        TrackedItemLotId lotA = createLot("minecraft:cobblestone", 32, ownerA);
+        TrackedItemLotId lotB = createLot("minecraft:cobblestone", 32, ownerB);
+
+        String subjectA = OwnershipSubject.player(ownerA, "PlayerA").describe();
+        String subjectB = OwnershipSubject.player(ownerB, "PlayerB").describe();
+
+        Optional<TrackedItemLot> foundA = lotRepo.findByFingerprintAndOwner(fp, subjectA);
+        Optional<TrackedItemLot> foundB = lotRepo.findByFingerprintAndOwner(fp, subjectB);
+
+        assertTrue(foundA.isPresent(), "Should find lot for player A");
+        assertTrue(foundB.isPresent(), "Should find lot for player B");
+        assertEquals(lotA, foundA.get().lotId(), "Should find correct lot for player A");
+        assertEquals(lotB, foundB.get().lotId(), "Should find correct lot for player B");
+    }
+
+    @Test
+    void samePlayerWithSameFingerprintReusesLot() throws Exception {
+        UUID owner = UUID.randomUUID();
+        LotCompatibilityFingerprint fp = LotCompatibilityFingerprint.builder()
+                .providerId("minecraft")
+                .material("minecraft:cobblestone")
+                .build();
+
+        TrackedItemLotId lotId = createLot("minecraft:cobblestone", 32, owner);
+        String subject = OwnershipSubject.player(owner, "TestPlayer").describe();
+
+        Optional<TrackedItemLot> found = lotRepo.findByFingerprintAndOwner(fp, subject);
+        assertTrue(found.isPresent());
+        assertEquals(lotId, found.get().lotId());
+    }
+
+    @Test
+    void findByFingerprintAndOwnerReturnsEmptyForUnknownOwner() throws Exception {
+        UUID owner = UUID.randomUUID();
+        createLot("minecraft:cobblestone", 32, owner);
+
+        LotCompatibilityFingerprint fp = LotCompatibilityFingerprint.builder()
+                .providerId("minecraft")
+                .material("minecraft:cobblestone")
+                .build();
+        String unknownSubject = OwnershipSubject.player(UUID.randomUUID(), "Unknown").describe();
+
+        Optional<TrackedItemLot> found = lotRepo.findByFingerprintAndOwner(fp, unknownSubject);
+        assertTrue(found.isEmpty(), "Should not find lot for unknown owner");
     }
 }
