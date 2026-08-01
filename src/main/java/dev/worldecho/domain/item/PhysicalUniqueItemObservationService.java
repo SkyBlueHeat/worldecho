@@ -5,7 +5,6 @@ import dev.worldecho.persistence.TrackedItemRepository;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -115,11 +114,6 @@ public final class PhysicalUniqueItemObservationService {
                             "Invalid subject: " + ownershipResult.optionalDiagnostic().orElse(""));
                 }
                 case CONFLICT -> {
-                    Optional<OwnershipState> currentState = ownershipTransitionService.currentOwnership(itemId);
-                    if (currentState.isPresent()
-                            && observation.observedSubject().equals(currentState.get().currentSubject())) {
-                        yield PhysicalObservationResult.idempotentReplay(observation, ownershipResult);
-                    }
                     metrics.recordPhysicalObservationWarning();
                     yield PhysicalObservationResult.persistenceFailure(observation,
                             "Conflict: " + ownershipResult.optionalDiagnostic().orElse(""));

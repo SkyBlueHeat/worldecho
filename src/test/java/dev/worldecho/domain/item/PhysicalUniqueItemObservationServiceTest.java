@@ -116,7 +116,20 @@ class PhysicalUniqueItemObservationServiceTest {
         PhysicalObservationResult result = service.process(buildObservation(itemId, worldDrop,
                 PhysicalObservationReason.LOADED_ITEM, 2));
 
-        assertEquals(PhysicalObservationResult.Status.IDEMPOTENT_REPLAY, result.status());
+        assertEquals(PhysicalObservationResult.Status.NO_CHANGE, result.status());
+    }
+
+    @Test
+    void noChangeWhenSameEntitySubjectAlreadyCurrentOnLoadRecovery() {
+        TrackedItemId itemId = trackedItemRepository.createTracked();
+        OwnershipSubject entity = OwnershipSubject.entity(UUID.randomUUID());
+
+        service.process(buildObservation(itemId, entity,
+                PhysicalObservationReason.ENTITY_HELD, 1));
+        PhysicalObservationResult result = service.process(buildObservation(itemId, entity,
+                PhysicalObservationReason.LOADED_ENTITY_EQUIPMENT, 2));
+
+        assertEquals(PhysicalObservationResult.Status.NO_CHANGE, result.status());
     }
 
     @Test

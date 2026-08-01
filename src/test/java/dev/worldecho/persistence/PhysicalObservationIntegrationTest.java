@@ -30,6 +30,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -209,7 +210,7 @@ class PhysicalObservationIntegrationTest {
                 itemId, OwnershipSubject.worldDrop(itemEntityUuid),
                 PhysicalObservationReason.LOADED_ITEM, 2));
 
-        assertEquals(PhysicalObservationResult.Status.IDEMPOTENT_REPLAY, result.status());
+        assertEquals(PhysicalObservationResult.Status.NO_CHANGE, result.status());
         assertEquals(1, ledgerRepository.countHistory(itemId));
     }
 
@@ -418,6 +419,106 @@ class PhysicalObservationIntegrationTest {
         assertEquals(itemEntityUuid.toString(), state.get().currentSubject().stableId());
     }
 
+    @Test
+    void repeatedEntityAcquisitionFromDifferentItemEntitiesRecordsBothTransitions() throws Exception {
+        TrackedItemId itemId = createTrackedItem();
+        UUID zombieUuid = UUID.randomUUID();
+        UUID itemEntityA = UUID.randomUUID();
+        UUID itemEntityB = UUID.randomUUID();
+
+        PhysicalObservationResult dropA = observationService.process(buildObservation(
+                itemId, OwnershipSubject.worldDrop(itemEntityA),
+                PhysicalObservationReason.DROPPED, 1, itemEntityA));
+        assertEquals(PhysicalObservationResult.Status.PROCESSED, dropA.status());
+
+        PhysicalObservationResult pickup1 = observationService.process(buildObservation(
+                itemId, OwnershipSubject.entity(zombieUuid),
+                PhysicalObservationReason.ENTITY_HELD, 2, itemEntityA));
+        assertEquals(PhysicalObservationResult.Status.PROCESSED, pickup1.status());
+
+        PhysicalObservationResult dropB = observationService.process(buildObservation(
+                itemId, OwnershipSubject.worldDrop(itemEntityB),
+                PhysicalObservationReason.WORLD_DROP_OBSERVED, 3, itemEntityB));
+        assertEquals(PhysicalObservationResult.Status.PROCESSED, dropB.status());
+
+        PhysicalObservationResult pickup2 = observationService.process(buildObservation(
+                itemId, OwnershipSubject.entity(zombieUuid),
+                PhysicalObservationReason.ENTITY_HELD, 4, itemEntityB));
+        assertEquals(PhysicalObservationResult.Status.PROCESSED, pickup2.status());
+
+        Optional<OwnershipState> state = ledgerRepository.findCurrentOwnership(itemId);
+        assertTrue(state.isPresent());
+        assertEquals(OwnershipSubjectType.ENTITY, state.get().currentSubject().type());
+        assertEquals(zombieUuid.toString(), state.get().currentSubject().stableId());
+
+        List<dev.worldecho.domain.item.OwnershipLedgerEntry> history =
+                ledgerRepository.findHistory(itemId, 10);
+        assertEquals(4, history.size());
+
+        long entityEntryCount = history.stream()
+                .filter(e -> e.newSubject().type() == OwnershipSubjectType.ENTITY)
+                .count();
+        assertEquals(2, entityEntryCount,
+                "Both ENTITY acquisition transitions must be recorded");
+
+        var entityEntries = history.stream()
+                .filter(e -> e.newSubject().type() == OwnershipSubjectType.ENTITY)
+                .toList();
+        assertNotEquals(entityEntries.get(0).idempotencyKey(),
+                        entityEntries.get(1).idempotencyKey(),
+                "Idempotency keys must differ because source Item entity UUIDs differ");
+    }
+
+    @Test
+    void repeatedEntityAcquisitionAfterRestartRecordsSecondTransfer() throws Exception {
+        TrackedItemId itemId = createTrackedItem();
+        UUID zombieUuid = UUID.randomUUID();
+        UUID itemEntityA = UUID.randomUUID();
+        UUID itemEntityB = UUID.randomUUID();
+
+        observationService.process(buildObservation(
+                itemId, OwnershipSubject.worldDrop(itemEntityA),
+                PhysicalObservationReason.DROPPED, 1, itemEntityA));
+        observationService.process(buildObservation(
+                itemId, OwnershipSubject.entity(zombieUuid),
+                PhysicalObservationReason.ENTITY_HELD, 2, itemEntityA));
+
+        DatabaseManager restarted = new DatabaseManager(database.databasePath());
+        restarted.initialize();
+        TrackedItemRepository restartedTracked = new SqliteTrackedItemRepository(restarted);
+        OwnershipLedgerRepository restartedLedger = new SqliteOwnershipLedgerRepository(restarted);
+        OwnershipTransitionService restartedTransition = new OwnershipTransitionService(
+                restartedTracked, restartedLedger,
+                Clock.fixed(Instant.parse("2026-07-30T12:00:00Z"), ZoneId.of("UTC"))
+        );
+        PhysicalObservationRegistry restartedRegistry = new PhysicalObservationRegistry(60_000L);
+        ReconciliationMetrics restartedMetrics = new ReconciliationMetrics();
+        PhysicalUniqueItemObservationService restartedService = new PhysicalUniqueItemObservationService(
+                restartedTracked, restartedTransition, restartedRegistry, restartedMetrics,
+                Clock.fixed(Instant.parse("2026-07-30T12:00:00Z"), ZoneId.of("UTC"))
+        );
+
+        PhysicalObservationResult dropB = restartedService.process(buildObservation(
+                itemId, OwnershipSubject.worldDrop(itemEntityB),
+                PhysicalObservationReason.WORLD_DROP_OBSERVED, 1, itemEntityB));
+        assertEquals(PhysicalObservationResult.Status.PROCESSED, dropB.status());
+
+        PhysicalObservationResult pickup2 = restartedService.process(buildObservation(
+                itemId, OwnershipSubject.entity(zombieUuid),
+                PhysicalObservationReason.ENTITY_HELD, 2, itemEntityB));
+        assertEquals(PhysicalObservationResult.Status.PROCESSED, pickup2.status());
+
+        Optional<OwnershipState> state = restartedLedger.findCurrentOwnership(itemId);
+        assertTrue(state.isPresent());
+        assertEquals(OwnershipSubjectType.ENTITY, state.get().currentSubject().type());
+        assertEquals(zombieUuid.toString(), state.get().currentSubject().stableId());
+
+        List<dev.worldecho.domain.item.OwnershipLedgerEntry> history =
+                restartedLedger.findHistory(itemId, 10);
+        assertEquals(4, history.size(),
+                "All four transitions must be recorded across sessions");
+    }
+
     private TrackedItemId createTrackedItem() throws Exception {
         TrackedItemId itemId = TrackedItemId.random();
         Instant now = Instant.parse("2026-07-30T12:00:00Z");
@@ -440,6 +541,27 @@ class PhysicalObservationIntegrationTest {
                 subject,
                 reason,
                 UUID.randomUUID(),
+                UUID.randomUUID(),
+                "world",
+                0, 64, 0,
+                "diamond_sword:1",
+                PhysicalObservationCycle.create(sequence, "session-1"),
+                Instant.now()
+        );
+    }
+
+    private PhysicalUniqueItemObservation buildObservation(
+            TrackedItemId itemId, OwnershipSubject subject,
+            PhysicalObservationReason reason, long sequence,
+            UUID entityItemUuid
+    ) {
+        return new PhysicalUniqueItemObservation(
+                itemId,
+                ContentKey.parse("minecraft:diamond_sword"),
+                "diamond_sword",
+                subject,
+                reason,
+                entityItemUuid,
                 UUID.randomUUID(),
                 "world",
                 0, 64, 0,

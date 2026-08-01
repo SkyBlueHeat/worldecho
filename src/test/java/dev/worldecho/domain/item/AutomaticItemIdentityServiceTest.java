@@ -183,7 +183,7 @@ class AutomaticItemIdentityServiceTest {
 
         assertEquals(SlotProcessResult.Status.PROCESSED, first.status());
         assertEquals(SlotProcessResult.Status.PROCESSED, second.status());
-        assertEquals(OwnershipResultStatus.IDEMPOTENT_REPLAY, second.ownershipResult().status());
+        assertEquals(OwnershipResultStatus.NO_CHANGE, second.ownershipResult().status());
     }
 
     @Test

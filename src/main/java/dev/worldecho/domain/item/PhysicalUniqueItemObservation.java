@@ -67,21 +67,40 @@ public record PhysicalUniqueItemObservation(
      * Semantic transition key that groups observations representing the same
      * physical ownership transition, regardless of which event triggered them.
      *
+     * <p>Keys are occurrence-specific so that the same entity acquiring the same
+     * item from a later, different Item entity produces a different key:
+     *
+     * <ul>
+     *   <li>WORLD_DROP (DROPPED, WORLD_DROP_OBSERVED, LOADED_ITEM, ENTITY_DEATH_DROP):
+     *       {@code physical:world-drop:<tracked-item-id>:<item-entity-uuid>}
+     *   <li>ENTITY pickup (ENTITY_HELD):
+     *       {@code physical:entity-pickup:<tracked-item-id>:<source-item-entity-uuid>:<entity-uuid>}
+     *   <li>ENTITY load recovery (LOADED_ENTITY_EQUIPMENT):
+     *       {@code physical:entity-loaded:<tracked-item-id>:<entity-uuid>}
+     *   <li>DESPAWN:
+     *       {@code physical:despawn:<tracked-item-id>:<item-entity-uuid>}
+     * </ul>
+     *
      * <p>For example, {@code PlayerDropItemEvent} (reason DROPPED) and
      * {@code ItemSpawnEvent} (reason WORLD_DROP_OBSERVED) for the same Item
-     * entity produce the same semantic key, so the second observation is
-     * treated as an idempotent replay rather than a duplicate transition.
+     * entity produce the same key, so the second observation is treated as an
+     * idempotent replay rather than a duplicate transition.
      *
-     * <p>For SYSTEM subjects, the observation-level idempotency key is returned
-     * because terminal observations should not be deduplicated across different
-     * events.
+     * <p>Observation sequence remains available for ordering but does not make
+     * the same physical transition semantically unique.
      */
     public String semanticTransitionKey() {
-        if (observedSubject.type() == OwnershipSubjectType.SYSTEM) {
-            return idempotencyKey();
-        }
-        return "physical:" + observedSubject.type().token()
-                + ":" + trackedItemId
-                + ":" + observedSubject.stableId();
+        return switch (observationReason) {
+            case DROPPED, WORLD_DROP_OBSERVED, LOADED_ITEM, ENTITY_DEATH_DROP ->
+                    "physical:world-drop:" + trackedItemId + ":" + observedSubject.stableId();
+            case ENTITY_HELD ->
+                    entityItemUuid != null
+                            ? "physical:entity-pickup:" + trackedItemId + ":" + entityItemUuid + ":" + observedSubject.stableId()
+                            : "physical:entity-loaded:" + trackedItemId + ":" + observedSubject.stableId();
+            case LOADED_ENTITY_EQUIPMENT ->
+                    "physical:entity-loaded:" + trackedItemId + ":" + observedSubject.stableId();
+            case DESPAWNED ->
+                    "physical:despawn:" + trackedItemId + ":" + (entityItemUuid != null ? entityItemUuid : observedSubject.stableId());
+        };
     }
 }

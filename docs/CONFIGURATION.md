@@ -145,10 +145,28 @@ physically track LOT stacks outside player inventories.
 | `reconcile-loaded-entities` | boolean | `true` | Reconcile loaded Item entities and entity equipment on chunk load or server restart. |
 | `item-despawn` | boolean | `true` | Record terminal SYSTEM observations for despawned UNIQUE items. |
 | `debug-messages` | boolean | `false` | Show debug messages for physical tracking (admin only, console only). |
+| `max-pending-capacity` | 16–10000 | `256` | Maximum pending physical observations in the bounded queue. |
 
 When physical tracking is disabled, existing ownership data and manual commands
 remain available. Reload updates these settings without scanning the world or
 clearing metrics.
+
+### Bounded pending queue
+
+Physical observations are processed asynchronously through a bounded queue.
+When the queue is full (for example during `ItemSpawnEvent` or
+`EntitiesLoadEvent` bursts), new observations are **rejected** — not queued
+indefinitely. Rejected observations increment the `phys.rejected` metric
+shown in `/worldecho status` and a warning is logged.
+
+No ownership data is deleted on rejection. The item remains in its last known
+ownership state; a future observation (for example on the next chunk load or
+player interaction) will reconcile the current state.
+
+On server shutdown, the queue drains all pending observations within the
+`persistence.shutdown-timeout-seconds` window before the database writer is
+shut down. The shutdown log reports `pending`, `submitted`, and `rejected`
+counts.
 
 ## Content bindings (`bindings.yml`)
 

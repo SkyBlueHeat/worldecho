@@ -65,11 +65,13 @@ class OwnershipTransitionServiceTest {
     @Test
     void idempotentReplayReturnsExistingEntry() {
         TrackedItemId itemId = trackedItemRepository.createTracked();
-        OwnershipSubject subject = OwnershipSubject.player(UUID.randomUUID());
+        OwnershipSubject subjectA = OwnershipSubject.player(UUID.randomUUID());
+        OwnershipSubject subjectB = OwnershipSubject.entity(UUID.randomUUID());
 
-        service.transition(itemId, subject, OwnershipTransitionReason.TRACKED, "same-key", "", "");
-        OwnershipResult result = service.transition(itemId, subject,
-                OwnershipTransitionReason.TRACKED, "same-key", "", "");
+        service.transition(itemId, subjectA, OwnershipTransitionReason.TRACKED, "key-a", "", "");
+        service.transition(itemId, subjectB, OwnershipTransitionReason.TRANSFERRED, "key-b", "", "");
+        OwnershipResult result = service.transition(itemId, subjectA,
+                OwnershipTransitionReason.TRACKED, "key-a", "", "");
 
         assertEquals(OwnershipResultStatus.IDEMPOTENT_REPLAY, result.status());
         assertTrue(result.optionalEntry().isPresent());

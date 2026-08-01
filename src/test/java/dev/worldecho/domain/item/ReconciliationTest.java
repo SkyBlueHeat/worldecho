@@ -126,7 +126,7 @@ class ReconciliationTest {
         OwnershipResult second = transitionService.transition(
                 itemId, subject, OwnershipTransitionReason.TRACKED,
                 idempotencyKey, "reconcile", "");
-        assertEquals(OwnershipResultStatus.IDEMPOTENT_REPLAY, second.status());
+        assertEquals(OwnershipResultStatus.NO_CHANGE, second.status());
 
         assertEquals(1, ledgerRepository.countHistory(itemId));
     }

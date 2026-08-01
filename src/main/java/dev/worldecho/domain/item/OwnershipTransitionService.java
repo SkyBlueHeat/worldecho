@@ -52,6 +52,15 @@ public final class OwnershipTransitionService {
                 return OwnershipResult.itemNotTracked(itemId);
             }
 
+            Optional<OwnershipState> currentState = ledgerRepository.findCurrentOwnership(itemId);
+            OwnershipSubject previousSubject = currentState
+                    .flatMap(OwnershipState::optionalCurrentSubject)
+                    .orElse(null);
+
+            if (previousSubject != null && previousSubject.equals(newSubject)) {
+                return OwnershipResult.noChange(itemId, newSubject);
+            }
+
             String normalizedKey = idempotencyKey == null ? "" : idempotencyKey.trim();
             if (!normalizedKey.isEmpty()) {
                 Optional<OwnershipLedgerEntry> existing =
@@ -67,15 +76,7 @@ public final class OwnershipTransitionService {
                 }
             }
 
-            Optional<OwnershipState> currentState = ledgerRepository.findCurrentOwnership(itemId);
-            OwnershipSubject previousSubject = currentState
-                    .flatMap(OwnershipState::optionalCurrentSubject)
-                    .orElse(null);
             int nextSequence = currentState.map(OwnershipState::latestSequence).orElse(0) + 1;
-
-            if (previousSubject != null && previousSubject.equals(newSubject)) {
-                return OwnershipResult.noChange(itemId, newSubject);
-            }
 
             Instant now = Instant.now(clock);
             OwnershipLedgerEntry entry = new OwnershipLedgerEntry(
